@@ -19,6 +19,7 @@
 #include "mm-plugin-zte.h"
 #include "mm-modem-zte.h"
 #include "mm-generic-cdma.h"
+#include "mm-log.h"
 
 G_DEFINE_TYPE (MMPluginZte, mm_plugin_zte, MM_TYPE_PLUGIN_BASE)
 
@@ -164,12 +165,6 @@ grab_port (MMPluginBase *base,
     port = mm_plugin_base_supports_task_get_port (task);
     g_assert (port);
 
-    /* Look for port type hints */
-    if (g_udev_device_get_property_as_boolean (port, "ID_MM_ZTE_PORT_TYPE_MODEM"))
-        pflags = MM_AT_PORT_FLAG_PRIMARY;
-    else if (g_udev_device_get_property_as_boolean (port, "ID_MM_ZTE_PORT_TYPE_AUX"))
-        pflags = MM_AT_PORT_FLAG_SECONDARY;
-
     subsys = g_udev_device_get_subsystem (port);
     name = g_udev_device_get_name (port);
 
@@ -181,8 +176,22 @@ grab_port (MMPluginBase *base,
     icera_dhcp = g_udev_device_get_property_as_boolean (port, "ID_MM_ZTE_ICERA_DHCP");
 
     caps = mm_plugin_base_supports_task_get_probed_capabilities (task);
-    sysfs_path = mm_plugin_base_supports_task_get_physdev_path (task);
     ptype = mm_plugin_base_probed_capabilities_to_port_type (caps);
+
+    /* Look for port type hints */
+    if (g_udev_device_get_property_as_boolean (port, "ID_MM_ZTE_PORT_TYPE_MODEM"))
+        pflags = MM_AT_PORT_FLAG_PRIMARY;
+    else if (g_udev_device_get_property_as_boolean (port, "ID_MM_ZTE_PORT_TYPE_AUX"))
+        pflags = MM_AT_PORT_FLAG_SECONDARY;
+    else if (ptype == MM_PORT_TYPE_AT) {
+        /* 3-endpoint AT-capable ports are more likely to be the primary port */
+        if (mm_plugin_base_supports_task_get_num_interface_endpoints (task) == 3) {
+            pflags = MM_AT_PORT_FLAG_PRIMARY;
+            mm_dbg ("(%s/%s) hinting PRIMARY due to possible Interrupt endpoint", subsys, name);
+        }
+    }
+
+    sysfs_path = mm_plugin_base_supports_task_get_physdev_path (task);
     if (!existing) {
         if (caps & MM_PLUGIN_BASE_PORT_CAP_GSM) {
             modem = mm_modem_zte_new (sysfs_path,

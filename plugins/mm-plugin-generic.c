@@ -32,6 +32,7 @@
 #include "mm-errors.h"
 #include "mm-serial-parsers.h"
 #include "mm-log.h"
+#include "mm-at-serial-port.h"
 
 G_DEFINE_TYPE (MMPluginGeneric, mm_plugin_generic, MM_TYPE_PLUGIN_BASE)
 
@@ -118,6 +119,7 @@ grab_port (MMPluginBase *base,
     guint32 caps;
     guint16 vendor = 0, product = 0;
     MMPortType ptype;
+    MMAtPortFlags pflags = MM_AT_PORT_FLAG_NONE;
 
     port = mm_plugin_base_supports_task_get_port (task);
     g_assert (port);
@@ -146,6 +148,15 @@ grab_port (MMPluginBase *base,
 
     caps = mm_plugin_base_supports_task_get_probed_capabilities (task);
     ptype = mm_plugin_base_probed_capabilities_to_port_type (caps);
+
+    /* 3-endpoint AT-capable ports are more likely to be the primary port */
+    if (ptype == MM_PORT_TYPE_AT) {
+        if (mm_plugin_base_supports_task_get_num_interface_endpoints (task) == 3) {
+            pflags = MM_AT_PORT_FLAG_PRIMARY;
+            mm_dbg ("(%s/%s) hinting PRIMARY due to possible Interrupt endpoint", subsys, name);
+        }
+    }
+
     sysfs_path = mm_plugin_base_supports_task_get_physdev_path (task);
     if (!existing) {
         if (caps & CAP_CDMA) {
@@ -165,14 +176,14 @@ grab_port (MMPluginBase *base,
         }
 
         if (modem) {
-            if (!mm_modem_grab_port (modem, subsys, name, ptype, MM_AT_PORT_FLAG_NONE, NULL, error)) {
+            if (!mm_modem_grab_port (modem, subsys, name, ptype, pflags, NULL, error)) {
                 g_object_unref (modem);
                 return NULL;
             }
         }
     } else if (get_level_for_capabilities (caps)) {
         modem = existing;
-        if (!mm_modem_grab_port (modem, subsys, name, ptype, MM_AT_PORT_FLAG_NONE, NULL, error))
+        if (!mm_modem_grab_port (modem, subsys, name, ptype, pflags, NULL, error))
             return NULL;
     }
 

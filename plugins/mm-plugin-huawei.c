@@ -313,6 +313,14 @@ grab_port (MMPluginBase *base,
         }
     }
 
+    /* Last try; 3-endpoint AT-capable ports are more likely to be the primary port */
+    if (ptype == MM_PORT_TYPE_AT && !pflags) {
+        if (mm_plugin_base_supports_task_get_num_interface_endpoints (task) == 3) {
+            pflags = MM_AT_PORT_FLAG_PRIMARY;
+            mm_dbg ("(%s/%s) hinting PRIMARY due to possible Interrupt endpoint", subsys, name);
+        }
+    }
+
     sysfs_path = mm_plugin_base_supports_task_get_physdev_path (task);
     if (!existing) {
         if (caps & MM_PLUGIN_BASE_PORT_CAP_GSM) {

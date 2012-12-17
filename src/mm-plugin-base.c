@@ -162,6 +162,7 @@ typedef struct {
     GUdevDevice *port;
     char *physdev_path;
     char *driver;
+    guint32 endpoints;
 
     guint open_id;
     guint32 open_tries;
@@ -195,6 +196,8 @@ supports_task_new (MMPluginBase *self,
 {
     MMPluginBaseSupportsTask *task;
     MMPluginBaseSupportsTaskPrivate *priv;
+    GUdevDevice *usb_interface;
+    int eps;
 
     g_return_val_if_fail (self != NULL, NULL);
     g_return_val_if_fail (MM_IS_PLUGIN_BASE (self), NULL);
@@ -212,6 +215,13 @@ supports_task_new (MMPluginBase *self,
     priv->driver = g_strdup (driver);
     priv->callback = callback;
     priv->callback_data = callback_data;
+
+    usb_interface = g_udev_device_get_parent_with_subsystem (port, "usb", "usb_interface");
+    if (usb_interface) {
+        eps = g_udev_device_get_sysfs_attr_as_int (usb_interface, "bNumEndpoints");
+        priv->endpoints = CLAMP (eps, 0, 10);
+        g_object_unref (usb_interface);
+    }
 
     return task;
 }
@@ -250,6 +260,15 @@ mm_plugin_base_supports_task_get_driver (MMPluginBaseSupportsTask *task)
     g_return_val_if_fail (MM_IS_PLUGIN_BASE_SUPPORTS_TASK (task), NULL);
 
     return MM_PLUGIN_BASE_SUPPORTS_TASK_GET_PRIVATE (task)->driver;
+}
+
+guint32
+mm_plugin_base_supports_task_get_num_interface_endpoints (MMPluginBaseSupportsTask *task)
+{
+    g_return_val_if_fail (task != NULL, 0);
+    g_return_val_if_fail (MM_IS_PLUGIN_BASE_SUPPORTS_TASK (task), 0);
+
+    return MM_PLUGIN_BASE_SUPPORTS_TASK_GET_PRIVATE (task)->endpoints;
 }
 
 guint32

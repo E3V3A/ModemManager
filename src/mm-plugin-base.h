@@ -86,6 +86,8 @@ const char *mm_plugin_base_supports_task_get_physdev_path (MMPluginBaseSupportsT
 
 const char *mm_plugin_base_supports_task_get_driver (MMPluginBaseSupportsTask *task);
 
+guint32 mm_plugin_base_supports_task_get_num_interface_endpoints (MMPluginBaseSupportsTask *task);
+
 guint32 mm_plugin_base_supports_task_get_probed_capabilities (MMPluginBaseSupportsTask *task);
 
 MMPortType mm_plugin_base_probed_capabilities_to_port_type (guint32 caps);
