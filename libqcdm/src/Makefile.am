@@ -13,6 +13,8 @@ libqcdm_la_SOURCES = \
 	commands.c \
 	commands.h \
 	commands-private.h \
+	log-items.c \
+	log-items.h \
 	errors.c \
 	errors.h \
 	result.c \
