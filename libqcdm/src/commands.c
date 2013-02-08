@@ -20,6 +20,7 @@
 #include <endian.h>
 
 #include "commands.h"
+#include "commands-private.h"
 #include "errors.h"
 #include "dm-commands.h"
 #include "dm-nv-items.h"
@@ -29,7 +30,7 @@
 
 /**********************************************************************/
 
-static u_int8_t
+u_int8_t
 cdma_prev_to_qcdm (u_int8_t cdma)
 {
     switch (cdma) {
@@ -53,7 +54,7 @@ cdma_prev_to_qcdm (u_int8_t cdma)
     return QCDM_CDMA_PREV_UNKNOWN;
 }
 
-static u_int8_t
+u_int8_t
 cdma_band_class_to_qcdm (u_int8_t cdma)
 {
     switch (cdma) {
