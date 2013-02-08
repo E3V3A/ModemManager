@@ -32,6 +32,9 @@
 typedef struct _MMQcdmSerialPort MMQcdmSerialPort;
 typedef struct _MMQcdmSerialPortClass MMQcdmSerialPortClass;
 
+/* Signals */
+#define QCDM_SERIAL_PORT_LOG_ITEM    "log-item"
+
 typedef void (*MMQcdmSerialResponseFn)     (MMQcdmSerialPort *port,
                                             GByteArray *response,
                                             GError *error,
@@ -43,6 +46,11 @@ struct _MMQcdmSerialPort {
 
 struct _MMQcdmSerialPortClass {
     MMSerialPortClass parent;
+
+	/* Signals */
+	void (*log_item) (MMQcdmSerialPort *port,
+	                  guint log_code,
+	                  const GByteArray *data);
 };
 
 GType mm_qcdm_serial_port_get_type (void);

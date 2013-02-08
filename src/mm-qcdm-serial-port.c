@@ -26,6 +26,7 @@
 #include "libqcdm/src/com.h"
 #include "libqcdm/src/utils.h"
 #include "libqcdm/src/errors.h"
+#include "libqcdm/src/log-items.h"
 #include "mm-log.h"
 
 G_DEFINE_TYPE (MMQcdmSerialPort, mm_qcdm_serial_port, MM_TYPE_SERIAL_PORT)
@@ -36,6 +37,12 @@ typedef struct {
     gboolean foo;
 } MMQcdmSerialPortPrivate;
 
+enum {
+    LOG_ITEM,
+    LAST_SIGNAL
+};
+
+static guint signals[LAST_SIGNAL] = { 0 };
 
 /*****************************************************************************/
 
@@ -70,6 +77,53 @@ static gboolean
 parse_response (MMSerialPort *port, GByteArray *response, GError **error)
 {
     return find_qcdm_start (response, NULL);
+}
+
+static void
+parse_unsolicited (MMSerialPort *port, GByteArray *response)
+{
+    GByteArray *unescaped = NULL;
+    guint8 *unescaped_buffer;
+    gsize used = 0;
+    gsize start = 0;
+    gboolean success = FALSE;
+    qcdmbool more = FALSE;
+    gsize unescaped_len = 0;
+
+    if (!find_qcdm_start (response, &start))
+        return;
+
+    /* Quick check if it's a log item */
+    if (start < 0 || response->data[start] != 0x10)
+        return;
+
+    unescaped_buffer = g_malloc (1024);
+    success = dm_decapsulate_buffer ((const char *) response->data,
+                                     response->len,
+                                     (char *) unescaped_buffer,
+                                     1024,
+                                     &unescaped_len,
+                                     &used,
+                                     &more);
+    if (!success || more) {
+        g_free (unescaped_buffer);
+        return;
+    }
+
+    /* Successfully decapsulated the DM command */
+    g_assert (unescaped_len <= 1024);
+    unescaped_buffer = g_realloc (unescaped_buffer, unescaped_len);
+    unescaped = g_byte_array_new_take (unescaped_buffer, unescaped_len);
+
+    if (qcdm_is_log_item ((const char *) unescaped->data, unescaped->len, 0)) {
+        g_signal_emit (port, signals[LOG_ITEM], 0,
+                       qcdm_get_log_item_code ((const char *) unescaped->data, unescaped->len),
+                       unescaped);
+        /* Remove the log item from the buffer */
+        g_byte_array_remove_range (response, 0, start + used);
+    }
+
+    g_byte_array_unref (unescaped);
 }
 
 static gsize
@@ -276,7 +330,16 @@ mm_qcdm_serial_port_class_init (MMQcdmSerialPortClass *klass)
     object_class->finalize = finalize;
 
     port_class->parse_response = parse_response;
+    port_class->parse_unsolicited = parse_unsolicited;
     port_class->handle_response = handle_response;
     port_class->config_fd = config_fd;
     port_class->debug_log = debug_log;
+
+	/* signals */
+	signals[LOG_ITEM] =
+		g_signal_new (QCDM_SERIAL_PORT_LOG_ITEM,
+					  G_OBJECT_CLASS_TYPE (object_class),
+					  G_SIGNAL_RUN_LAST,
+					  0, NULL, NULL, NULL,
+					  G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_BYTE_ARRAY);
 }
