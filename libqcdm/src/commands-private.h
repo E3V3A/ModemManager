@@ -28,6 +28,12 @@ u_int8_t cdma_prev_to_qcdm (u_int8_t cdma);
 
 u_int8_t cdma_band_class_to_qcdm (u_int8_t cdma);
 
+#define PILOT_SET_ACTIVE    "active-set"
+#define PILOT_SET_CANDIDATE "candidate-set"
+#define PILOT_SET_NEIGHBOR  "neighbor-set"
+
+const char *pilot_set_num_to_str (u_int32_t num);
+
 /**********************************************************************/
 
 #endif  /* LIBQCDM_COMMANDS_PRIVATE_H */

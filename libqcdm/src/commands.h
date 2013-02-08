@@ -79,6 +79,13 @@ enum {
     QCDM_ERI_ROAMING_ICON_MODE_FLASH = 1,
 };
 
+enum {
+    QCDM_PILOT_SET_TYPE_UNKNOWN = 0,
+    QCDM_PILOT_SET_TYPE_ACTIVE = 1,
+    QCDM_PILOT_SET_TYPE_CANDIDATE = 2,
+    QCDM_PILOT_SET_TYPE_NEIGHBOR = 3,
+};
+
 /**********************************************************************/
 
 #define QCDM_CMD_VERSION_INFO_ITEM_COMP_DATE "comp-date"
