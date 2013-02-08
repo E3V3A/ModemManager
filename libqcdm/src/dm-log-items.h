@@ -90,6 +90,65 @@ struct DMLogItemCdmaReversePowerControl {
 } __attribute__ ((packed));
 typedef struct DMLogItemCdmaReversePowerControl DMLogItemCdmaReversePowerControl;
 
+/* DM_LOG_ITEM_EVDO_PILOT_SETS_V2 */
+#define DM_LOG_ITEM_EVDO_PILOT_SETS_V2_GET_BAND_CLASS(c) ((c & 0xF000) >> 12)
+#define DM_LOG_ITEM_EVDO_PILOT_SETS_V2_GET_CHANNEL(c)    (c & 0xFFF)
+
+struct DMLogItemEvdoPilotSetsV2PilotActive {
+	u_int16_t pilot_pn;
+	u_int16_t energy;
+	u_int16_t unknown1;
+	u_int16_t mac_index;
+	u_int16_t window_center;
+} __attribute__ ((packed));
+typedef struct DMLogItemEvdoPilotSetsV2PilotActive DMLogItemEvdoPilotSetsV2PilotActive;
+
+struct DMLogItemEvdoPilotSetsV2PilotCandidate {
+	u_int16_t pilot_pn;
+	u_int16_t energy;
+	u_int16_t channel;  /* top 4 bits are band class, lower 12 are channel */
+	u_int16_t unknown1;
+	u_int16_t window_center;
+} __attribute__ ((packed));
+typedef struct DMLogItemEvdoPilotSetsV2PilotCandidate DMLogItemEvdoPilotSetsV2PilotCandidate;
+
+struct DMLogItemEvdoPilotSetsV2PilotNeighbor {
+	u_int16_t pilot_pn;
+	u_int16_t energy;
+	u_int16_t channel;  /* top 4 bits are band class, lower 12 are channel */
+	u_int16_t window_center;
+	u_int8_t unknown1;
+	u_int8_t age;
+} __attribute__ ((packed));
+typedef struct DMLogItemEvdoPilotSetsV2PilotNeighbor DMLogItemEvdoPilotSetsV2PilotNeighbor;
+
+struct DMLogItemEvdoPilotSetsV2Pilot {
+	union {
+		struct DMLogItemEvdoPilotSetsV2PilotActive active;
+		struct DMLogItemEvdoPilotSetsV2PilotCandidate candidate;
+		struct DMLogItemEvdoPilotSetsV2PilotNeighbor neighbor;
+	} u;
+} __attribute__ ((packed));
+typedef struct DMLogItemEvdoPilotSetsV2Pilot DMLogItemEvdoPilotSetsV2Pilot;
+
+struct DMLogItemEvdoPilotSetsV2 {
+    struct DMCmdLog cmd;
+
+    u_int8_t pn_offset;
+    u_int8_t active_count;
+    u_int8_t active_window;
+    u_int16_t active_channel; /* top 4 bits are band class, lower 12 are channel */
+    u_int8_t unknown1;
+    u_int8_t candidate_count;
+    u_int8_t candidate_window;
+    u_int8_t neighbor_count;
+    u_int8_t neighbor_window;
+    u_int8_t unknown2;
+
+    struct DMLogItemEvdoPilotSetsV2Pilot sets[];
+} __attribute__ ((packed));
+typedef struct DMLogItemEvdoPilotSetsV2 DMLogItemEvdoPilotSetsV2;
+
 
 /* DM_LOG_ITEM_WCDMA_TA_FINGER_INFO */
 struct DMLogItemWcdmaTaFingerInfo {
