@@ -37,7 +37,7 @@ enum {
     DM_LOG_ITEM_EVDO_REV_POWER_CONTROL          = 0x1063,
     DM_LOG_ITEM_EVDO_ARQ_EFFECTIVE_RECEIVE_RATE = 0x1066,
     DM_LOG_ITEM_EVDO_AIR_LINK_SUMMARY           = 0x1068,
-    DM_LOG_ITEM_EVDO_POWER                      = 0x1069
+    DM_LOG_ITEM_EVDO_POWER                      = 0x1069,
     DM_LOG_ITEM_EVDO_FWD_LINK_PACKET_SNAPSHOT   = 0x106A,
     DM_LOG_ITEM_EVDO_ACCESS_ATTEMPT             = 0x106C,
     DM_LOG_ITEM_EVDO_REV_ACTIVITY_BITS_BUFFER   = 0x106D,
@@ -98,7 +98,7 @@ struct DMLogItemWcdmaTaFingerInfo {
     u_int8_t non_coherent_interval_len;
     u_int8_t num_paths;
     u_int32_t path_enr;
-    int32_t pn_pos_path
+    int32_t pn_pos_path;
     int16_t pri_cpich_psc;
     u_int8_t unknown1;
     u_int8_t sec_cpich_ssc;
@@ -164,7 +164,7 @@ typedef struct DMLogItemGsmBurstMetric DMLogItemGsmBurstMetric;
 
 struct DMLogItemGsmBurstMetrics {
     u_int8_t channel;
-    DMLogItemBurstMetric metrics[4];
+    DMLogItemGsmBurstMetric metrics[4];
 } __attribute__ ((packed));
 typedef struct DMLogItemGsmBurstMetrics DMLogItemGsmBurstMetrics;
 
