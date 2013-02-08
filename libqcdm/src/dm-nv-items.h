@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBQCDM_NV_ITEMS_H
-#define LIBQCDM_NV_ITEMS_H
+#ifndef LIBQCDM_DM_NV_ITEMS_H
+#define LIBQCDM_DM_NV_ITEMS_H
 
 #include <sys/types.h>
 
@@ -114,5 +114,5 @@ struct DMNVItemHybridPref {
 } __attribute__ ((packed));
 typedef struct DMNVItemHybridPref DMNVItemHybridPref;
 
-#endif  /* LIBQCDM_NV_ITEMS_H */
+#endif  /* LIBQCDM_DM_NV_ITEMS_H */
 

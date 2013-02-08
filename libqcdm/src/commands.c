@@ -22,7 +22,7 @@
 #include "commands.h"
 #include "errors.h"
 #include "dm-commands.h"
-#include "nv-items.h"
+#include "dm-nv-items.h"
 #include "result-private.h"
 #include "utils.h"
 

@@ -6,8 +6,8 @@ libqcdm_la_CPPFLAGS = \
 
 libqcdm_la_SOURCES = \
 	dm-commands.h \
-	nv-items.h \
-	log-items.h \
+	dm-nv-items.h \
+	dm-log-items.h \
 	com.c \
 	com.h \
 	commands.c \

@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBQCDM_LOG_ITEMS_H
-#define LIBQCDM_LOG_ITEMS_H
+#ifndef LIBQCDM_DM_LOG_ITEMS_H
+#define LIBQCDM_DM_LOG_ITEMS_H
 
 enum {
     /* CDMA and EVDO items */
@@ -190,4 +190,4 @@ struct DMLogItemGsmBcchMessage {
 } __attribute__ ((packed));
 typedef struct DMLogItemGsmBcchMessage DMLogItemGsmBcchMessage;
 
-#endif  /* LIBQCDM_LOG_ITEMS_H */
+#endif  /* LIBQCDM_DM_LOG_ITEMS_H */
