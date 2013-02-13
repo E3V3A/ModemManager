@@ -47,6 +47,7 @@
 #include "mm-qcdm-serial-port.h"
 #include "libqcdm/src/errors.h"
 #include "libqcdm/src/commands.h"
+#include "libqcdm/src/log-items.h"
 
 static void iface_modem_init (MMIfaceModem *iface);
 static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
@@ -57,6 +58,8 @@ static void iface_modem_location_init (MMIfaceModemLocation *iface);
 static void iface_modem_messaging_init (MMIfaceModemMessaging *iface);
 static void iface_modem_time_init (MMIfaceModemTime *iface);
 static void iface_modem_firmware_init (MMIfaceModemFirmware *iface);
+
+static MMIfaceModemCdma *iface_modem_cdma_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModem, mm_broadband_modem, MM_TYPE_BASE_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -152,6 +155,9 @@ struct _MMBroadbandModemPrivate {
     gboolean modem_cdma_cdma1x_network_supported;
     gboolean modem_cdma_evdo_network_supported;
     GCancellable *modem_cdma_pending_registration_cancellable;
+    guint cdma_log_id;
+    guint last_evdo_set_quality;
+    time_t last_evdo_set_ts;
     /* Implementation helpers */
     gboolean checked_sprint_support;
     gboolean has_spservice;
@@ -1809,17 +1815,29 @@ signal_quality_qcdm (SignalQualityContext *ctx)
 {
     GByteArray *pilot_sets;
 
-    /* Use CDMA1x pilot EC/IO if we can */
-    pilot_sets = g_byte_array_sized_new (25);
-    pilot_sets->len = qcdm_cmd_pilot_sets_new ((char *) pilot_sets->data, 25);
-    g_assert (pilot_sets->len);
+    /* If we have a recent EVDO active set pilot signal quality, just use that
+     * otherwise try to get CDMA1x quality.  EVDO pilot sets log messages
+     * come about every 40 seconds for idle devices, but will come more
+     * frequently if the signal actually changes.
+     */
+    if (time (NULL) > ctx->self->priv->last_evdo_set_ts + 45) {
+        /* Use CDMA1x pilot EC/IO if we can */
+        pilot_sets = g_byte_array_sized_new (25);
+        pilot_sets->len = qcdm_cmd_pilot_sets_new ((char *) pilot_sets->data, 25);
+        g_assert (pilot_sets->len);
 
-    mm_qcdm_serial_port_queue_command (MM_QCDM_SERIAL_PORT (ctx->port),
-                                       pilot_sets,
-                                       3,
-                                       NULL,
-                                       (MMQcdmSerialResponseFn)signal_quality_qcdm_ready,
-                                       ctx);
+        mm_qcdm_serial_port_queue_command (MM_QCDM_SERIAL_PORT (ctx->port),
+                                           pilot_sets,
+                                           3,
+                                           NULL,
+                                           (MMQcdmSerialResponseFn)signal_quality_qcdm_ready,
+                                           ctx);
+    } else {
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   GUINT_TO_POINTER (ctx->self->priv->last_evdo_set_quality),
+                                                   NULL);
+        signal_quality_context_complete_and_free (ctx);
+    }
 }
 
 static void
@@ -6055,6 +6073,292 @@ modem_cdma_load_meid (MMIfaceModemCdma *self,
 }
 
 /*****************************************************************************/
+/* Unsolicited event handling (CDMA interface) */
+
+#define LOG_ENABLE_TAG "log-enable"
+#define DM_LOG_ITEM_EVDO_PILOT_SETS_V2 0x108B
+
+static void
+cdma_log_handler (MMQcdmSerialPort *port,
+                  guint log_code,
+                  const GByteArray *data,
+                  MMBroadbandModem *self)
+{
+    QcdmResult *result;
+    int err;
+    u_int32_t num = 0;
+    u_int32_t pilot_pn = 0;
+    u_int32_t energy = 0;
+    int32_t dbm = 0;
+    u_int32_t band_class = 0;
+    u_int32_t channel = 0;
+    u_int32_t window_center = 0;
+    guint quality;
+    MMModemAccessTechnology act;
+    MMModemCdmaRegistrationState evdo_regstate;
+
+    if (log_code != DM_LOG_ITEM_EVDO_PILOT_SETS_V2)
+        return;
+
+    result = qcdm_log_item_evdo_pilot_sets_v2_result ((const char *) data->data,
+                                                      data->len,
+                                                      &err);
+    if (!result) {
+        mm_dbg ("Failed to parse QCDM EVDO Pilot Sets V2 log item: %d", err);
+        return;
+    }
+
+    /* We only care about active pilots */
+    if (!qcdm_log_item_evdo_pilot_sets_v2_result_get_num (result,
+                                                          QCDM_LOG_ITEM_PILOT_SET_TYPE_ACTIVE,
+                                                          &num)) {
+        mm_dbg ("Failed to get QCDM EVDO Active Set pilots");
+        goto out;
+    }
+
+    if (num == 0) {
+        mm_dbg ("No QCDM EVDO Active Set pilots");
+        goto out;
+    }
+
+    if (!qcdm_log_item_evdo_pilot_sets_result_get_pilot (result,
+                                                         QCDM_LOG_ITEM_PILOT_SET_TYPE_ACTIVE,
+                                                         0,
+                                                         &pilot_pn,
+                                                         &energy,
+                                                         &dbm,
+                                                         &band_class,
+                                                         &channel,
+                                                         &window_center)) {
+        mm_dbg ("Failed to read QCDM EVDO Active Set pilot 0");
+        goto out;
+    }
+
+    mm_dbg ("EVDO Active Set Pilot: PN:%d E:%d dBm:%d BC:%d C:%d WC:%d",
+            pilot_pn, energy, dbm, band_class, channel, window_center);
+
+    /* Asynchronously update signal strength if EVDO is registered and one of
+     * the current access technologies.
+     */
+    act = mm_iface_modem_get_access_technologies (MM_IFACE_MODEM (self));
+    evdo_regstate = mm_simple_status_get_cdma_evdo_registration_state (self->priv->modem_simple_status);
+    if (evdo_regstate != MM_MODEM_CDMA_REGISTRATION_STATE_UNKNOWN &&
+          (act & MM_IFACE_MODEM_CDMA_ALL_EVDO_ACCESS_TECHNOLOGIES_MASK)) {
+        dbm = CLAMP (dbm, -105, -70);
+        quality = 100 - ((dbm + 70) * 100 / (-105 + 70));
+
+        mm_iface_modem_update_signal_quality (MM_IFACE_MODEM (self), quality);
+        self->priv->last_evdo_set_quality = quality;
+        self->priv->last_evdo_set_ts = time (NULL);
+    }
+
+out:
+    qcdm_result_unref (result);
+}
+
+static gboolean
+modem_cdma_enable_disable_unsolicited_events_finish (MMIfaceModemCdma *cdma,
+                                                     GAsyncResult *res,
+                                                     GError **error)
+{
+    MMBroadbandModem *self = MM_BROADBAND_MODEM (cdma);
+    gboolean enable = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (res), LOG_ENABLE_TAG));
+    MMQcdmSerialPort *port;
+
+    port = mm_base_modem_peek_port_qcdm (MM_BASE_MODEM (self));
+    g_assert (port);
+
+    /* remove any existing log handler */
+    if (self->priv->cdma_log_id) {
+        g_signal_handler_disconnect (port, self->priv->cdma_log_id);
+        self->priv->cdma_log_id = 0;
+    }
+
+    if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
+        return FALSE;
+
+    /* Enable log handler if log messages are being enabled */
+    if (enable) {
+        self->priv->cdma_log_id = g_signal_connect (port,
+                                                    QCDM_SERIAL_PORT_LOG_ITEM,
+                                                    (GCallback) cdma_log_handler,
+                                                    self);
+    }
+
+    return TRUE;
+}
+
+static void
+cdma_set_log_config_ready (MMQcdmSerialPort *port,
+                           GByteArray *response,
+                           GError *error,
+                           GSimpleAsyncResult *simple)
+{
+    QcdmResult *result;
+    gint err = QCDM_SUCCESS;
+
+    if (error) {
+        g_simple_async_result_set_from_error (simple, error);
+        g_simple_async_result_complete (simple);
+        return;
+    }
+
+    /* Parse the response */
+    result = qcdm_cmd_log_config_set_mask_result ((const gchar *) response->data,
+                                                  response->len,
+                                                  &err);
+    if (!result) {
+        g_simple_async_result_set_error (simple,
+                                         MM_CORE_ERROR,
+                                         MM_CORE_ERROR_FAILED,
+                                         "Failed to parse QCDM log config command result: %d",
+                                         err);
+        g_simple_async_result_complete (simple);
+        return;
+    }
+
+    g_simple_async_result_set_op_res_gboolean (simple, TRUE);
+    g_simple_async_result_complete (simple);
+}
+
+static void
+cdma_get_log_config_ready (MMQcdmSerialPort *port,
+                           GByteArray *response,
+                           GError *error,
+                           GSimpleAsyncResult *simple)
+{
+    QcdmResult *result;
+    gint err = QCDM_SUCCESS;
+    GByteArray *set_log;
+    u_int32_t num_items;
+    const u_int16_t *items = NULL;
+    size_t items_len = 0;
+    u_int16_t *new_items;
+    gboolean enable;
+    guint i, j;
+
+    if (error) {
+        g_simple_async_result_set_from_error (simple, error);
+        g_simple_async_result_complete (simple);
+        return;
+    }
+
+    /* Parse the response */
+    result = qcdm_cmd_log_config_get_mask_result ((const gchar *) response->data,
+                                                  response->len,
+                                                  &err);
+    if (!result) {
+        g_simple_async_result_set_error (simple,
+                                         MM_CORE_ERROR,
+                                         MM_CORE_ERROR_FAILED,
+                                         "Failed to parse QCDM log config command result: %d",
+                                         err);
+        g_simple_async_result_complete (simple);
+        return;
+    }
+
+    enable = GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (simple), LOG_ENABLE_TAG));
+
+    qcdm_result_get_u32 (result, QCDM_CMD_LOG_CONFIG_MASK_ITEM_NUM_ITEMS, &num_items);
+    new_items = g_new0 (guint16, num_items + 2);
+
+    qcdm_result_get_u16_array (result, QCDM_CMD_LOG_CONFIG_MASK_ITEM_ITEMS, &items, &items_len);
+    for (i = 0, j = 0; i < items_len; i++) {
+        if (enable == FALSE && items[i] != DM_LOG_ITEM_EVDO_PILOT_SETS_V2)
+            new_items[j++] = items[i];
+    }
+
+    if (enable)
+        new_items[j++] = DM_LOG_ITEM_EVDO_PILOT_SETS_V2;
+    new_items[j++] = 0;
+
+    qcdm_result_unref (result);
+
+    /* Send the updated log mask to the modem */
+    set_log = g_byte_array_sized_new (600);
+    set_log->len = qcdm_cmd_log_config_set_mask_new ((gchar *) set_log->data, 600, 0x01, new_items);
+    g_assert (set_log->len);
+    g_free (new_items);
+
+    mm_qcdm_serial_port_queue_command (port,
+                                       set_log,
+                                       3,
+                                       NULL,
+                                       (MMQcdmSerialResponseFn) cdma_set_log_config_ready,
+                                       simple);
+}
+
+static void
+cdma_get_log_config (MMBroadbandModem *self,
+                     gboolean enable,
+                     GSimpleAsyncResult *simple)
+{
+    GByteArray *get_log;
+    MMQcdmSerialPort *port;
+
+    port = mm_base_modem_peek_port_qcdm (MM_BASE_MODEM (self));
+    g_assert (port);
+
+    g_object_set_data (G_OBJECT (simple), LOG_ENABLE_TAG, GUINT_TO_POINTER (enable));
+
+    /* Get existing mask for CDMA/EVDO equip ID */
+    get_log = g_byte_array_sized_new (550);
+    get_log->len = qcdm_cmd_log_config_get_mask_new ((gchar *) get_log->data, 520, 0x01);
+    g_assert (get_log->len);
+
+    mm_qcdm_serial_port_queue_command (port,
+                                       get_log,
+                                       3,
+                                       NULL,
+                                       (MMQcdmSerialResponseFn) cdma_get_log_config_ready,
+                                       simple);
+}
+
+static void
+modem_cdma_enable_unsolicited_events (MMIfaceModemCdma *self,
+                                      GAsyncReadyCallback callback,
+                                      gpointer user_data)
+{
+    GSimpleAsyncResult *result;
+
+    result = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        modem_cdma_enable_unsolicited_events);
+
+    if (mm_base_modem_peek_port_qcdm (MM_BASE_MODEM (self))) {
+        /* Enable CDMA/EVDO related log messages */
+        cdma_get_log_config (MM_BROADBAND_MODEM (self), TRUE, result);
+    } else {
+        g_simple_async_result_set_op_res_gboolean (result, TRUE);
+        g_simple_async_result_complete_in_idle (result);
+        g_object_unref (result);
+    }
+}
+
+static void
+modem_cdma_disable_unsolicited_events (MMIfaceModemCdma *self,
+                                       GAsyncReadyCallback callback,
+                                       gpointer user_data)
+{
+    GSimpleAsyncResult *result;
+
+    result = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        modem_cdma_disable_unsolicited_events);
+
+    if (mm_base_modem_peek_port_qcdm (MM_BASE_MODEM (self))) {
+        /* Disable CDMA/EVDO related log messages */
+        cdma_get_log_config (MM_BROADBAND_MODEM (self), FALSE, result);
+    } else {
+        g_simple_async_result_set_op_res_gboolean (result, TRUE);
+        g_simple_async_result_complete_in_idle (result);
+        g_object_unref (result);
+    }
+}
+
+/*****************************************************************************/
 /* HDR state check (CDMA interface) */
 
 typedef struct {
@@ -9424,11 +9728,17 @@ iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
 static void
 iface_modem_cdma_init (MMIfaceModemCdma *iface)
 {
+    iface_modem_cdma_parent = g_type_interface_peek_parent (iface);
+
     /* Initialization steps */
     iface->load_esn = modem_cdma_load_esn;
     iface->load_esn_finish = modem_cdma_load_esn_finish;
     iface->load_meid = modem_cdma_load_meid;
     iface->load_meid_finish = modem_cdma_load_meid_finish;
+
+    /* Enabling steps */
+    iface->enable_unsolicited_events = modem_cdma_enable_unsolicited_events;
+    iface->enable_unsolicited_events_finish = modem_cdma_enable_disable_unsolicited_events_finish;
 
     /* Registration check steps */
     iface->setup_registration_checks = modem_cdma_setup_registration_checks;
@@ -9447,6 +9757,10 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
     /* Additional actions */
     iface->register_in_network = modem_cdma_register_in_network;
     iface->register_in_network_finish = modem_cdma_register_in_network_finish;
+
+    /* Disabling steps */
+    iface->disable_unsolicited_events = modem_cdma_disable_unsolicited_events;
+    iface->disable_unsolicited_events_finish = modem_cdma_enable_disable_unsolicited_events_finish;
 }
 
 static void
