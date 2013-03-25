@@ -60,6 +60,7 @@ mm_plugin_create (void)
                                        0x413c, /* Dell */
                                        0 };
     static const mm_uint16_pair forbidden_products[] = { { 0x1410, 0x9010 }, /* Novatel E362 */
+                                                         { 0x1410, 0xa021 }, /* Novatel E396 */
                                                          {0, 0} };
     static const gchar *drivers[] = { "option1", "option", NULL };
 
