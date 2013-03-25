@@ -203,4 +203,8 @@ gint  mm_cdma_normalize_class (const gchar *orig_class);
 gchar mm_cdma_normalize_band  (const gchar *long_band,
                                gint *out_class);
 
+gboolean mm_cdma_parse_gsn (const char *gsn,
+                            gchar **out_meid,
+                            gchar **out_esn);
+
 #endif  /* MM_MODEM_HELPERS_H */
