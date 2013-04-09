@@ -68,7 +68,8 @@ pkglib_LTLIBRARIES = \
 	libmm-plugin-zte.la \
 	libmm-plugin-sierra.la \
 	libmm-plugin-mbm.la \
-	libmm-plugin-via.la
+	libmm-plugin-via.la \
+	libmm-plugin-infineon.la
 
 # Generic
 libmm_plugin_generic_la_SOURCES = \
@@ -337,6 +338,17 @@ libmm_plugin_via_la_SOURCES = \
 	via/mm-broadband-modem-via.h
 libmm_plugin_via_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS)
 libmm_plugin_via_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
+
+# Infineon modem
+libmm_plugin_infineon_la_SOURCES = \
+	infineon/mm-plugin-infineon.c \
+	infineon/mm-plugin-infineon.h \
+	infineon/mm-broadband-modem-infineon.c \
+	infineon/mm-broadband-modem-infineon.h \
+	infineon/mm-broadband-bearer-infineon.c \
+	infineon/mm-broadband-bearer-infineon.h
+libmm_plugin_infineon_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS)
+libmm_plugin_infineon_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
 
 # Additional files to include in the distribution
 EXTRA_DIST = \
