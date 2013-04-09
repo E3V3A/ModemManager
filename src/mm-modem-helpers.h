@@ -125,6 +125,11 @@ gboolean mm_3gpp_parse_cpms_test_response (const gchar *reply,
 gboolean mm_3gpp_parse_cscs_test_response (const gchar *reply,
                                            MMModemCharset *out_charsets);
 
+/* AT+CGPADDR=X (IP address) response parser */
+gboolean mm_3gpp_parse_cgpaddr_write_response (const gchar *reply,
+                                               guint *cid,
+                                               gchar **ip);
+
 /* AT+CLCK=? (Supported locks) response parser */
 gboolean mm_3gpp_parse_clck_test_response (const gchar *reply,
                                            MMModem3gppFacility *out_facilities);
