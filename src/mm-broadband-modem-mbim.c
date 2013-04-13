@@ -1973,7 +1973,7 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp *self,
                        NULL));
     mbim_device_command (device,
                          message,
-                         10,
+                         60,
                          NULL,
                          (GAsyncReadyCallback)register_state_set_ready,
                          result);
