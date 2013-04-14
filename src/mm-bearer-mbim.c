@@ -174,6 +174,9 @@ provisioned_contexts_query (MbimDevice *device,
         }
 
         mbim_provisioned_context_element_array_free (provisioned_contexts);
+    } else {
+        mm_dbg ("Error listing provisioned contexts: %s", error->message);
+        g_error_free (error);
     }
 
     /* Keep on */
