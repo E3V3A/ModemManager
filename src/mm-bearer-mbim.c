@@ -528,6 +528,10 @@ mm_bearer_mbim_init (MMBearerMbim *self)
 static void
 dispose (GObject *object)
 {
+    MMBearerMbim *self = MM_BEARER_MBIM (object);
+
+    g_clear_object (&self->priv->data);
+
     G_OBJECT_CLASS (mm_bearer_mbim_parent_class)->dispose (object);
 }
 
