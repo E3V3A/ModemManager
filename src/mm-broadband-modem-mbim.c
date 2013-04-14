@@ -1008,7 +1008,7 @@ bearer_list_session_id_foreach (MMBearer *bearer,
         ctx->found = TRUE;
 }
 
-static guint32
+static gint
 find_next_bearer_session_id (MMBroadbandModemMbim *self)
 {
     MMBearerList *bearer_list;
@@ -1019,9 +1019,9 @@ find_next_bearer_session_id (MMBroadbandModemMbim *self)
                   NULL);
 
     if (!bearer_list)
-        return 1;
+        return 0;
 
-    for (i = 1; i <= 255; i++) {
+    for (i = 0; i <= 255; i++) {
         FindSessionId ctx;
 
         ctx.session_id = i;
@@ -1033,13 +1033,13 @@ find_next_bearer_session_id (MMBroadbandModemMbim *self)
 
         if (!ctx.found) {
             g_object_unref (bearer_list);
-            return i;
+            return (gint)i;
         }
     }
 
     /* no valid session id found */
     g_object_unref (bearer_list);
-    return 0;
+    return -1;
 }
 
 static void
@@ -1050,7 +1050,7 @@ modem_create_bearer (MMIfaceModem *self,
 {
     MMBearer *bearer;
     GSimpleAsyncResult *result;
-    guint32 session_id;
+    gint session_id;
 
     /* Set a new ref to the bearer object as result */
     result = g_simple_async_result_new (G_OBJECT (self),
@@ -1060,7 +1060,7 @@ modem_create_bearer (MMIfaceModem *self,
 
     /* Find a new session ID */
     session_id = find_next_bearer_session_id (MM_BROADBAND_MODEM_MBIM (self));
-    if (!session_id) {
+    if (session_id < 0) {
         g_simple_async_result_set_error (
             result,
             MM_CORE_ERROR,
@@ -1075,7 +1075,7 @@ modem_create_bearer (MMIfaceModem *self,
     mm_dbg ("Creating MBIM bearer in MBIM modem");
     bearer = mm_bearer_mbim_new (MM_BROADBAND_MODEM_MBIM (self),
                                  properties,
-                                 session_id);
+                                 (guint)session_id);
 
     g_simple_async_result_set_op_res_gpointer (result, bearer, g_object_unref);
     g_simple_async_result_complete_in_idle (result);
