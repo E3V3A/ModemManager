@@ -216,6 +216,32 @@ mm_filter_current_bands (const GArray *supported_bands,
 
 /*****************************************************************************/
 
+gchar *
+mm_new_iso8601_time (guint year,
+                     guint month,
+                     guint day,
+                     guint hour,
+                     guint minute,
+                     guint second,
+                     gboolean have_offset,
+                     gint offset_minutes)
+{
+    GString *str;
+
+    str = g_string_sized_new (30);
+    g_string_append_printf (str, "%04d/%02d/%02d %02d:%02d:%02d",
+                            year, month, day, hour, minute, second);
+    if (have_offset) {
+        g_string_append_printf (str, "%c%02d:%02d",
+                                offset_minutes >= 0 ? '+' : '-',
+                                offset_minutes / 60,
+                                offset_minutes % 60);
+    }
+    return g_string_free (str, FALSE);
+}
+
+/*****************************************************************************/
+
 /* +CREG: <stat>                      (GSM 07.07 CREG=1 unsolicited) */
 #define CREG1 "\\+(CREG|CGREG|CEREG):\\s*0*([0-9])"
 
