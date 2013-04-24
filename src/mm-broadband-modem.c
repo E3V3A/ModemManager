@@ -1553,7 +1553,8 @@ modem_load_supported_modes (MMIfaceModem *self,
 typedef struct {
     MMBroadbandModem *self;
     GSimpleAsyncResult *result;
-    MMSerialPort *port;
+    MMSerialPort *at_port;
+    MMSerialPort *qcdm_port;
 } SignalQualityContext;
 
 static void
@@ -1562,8 +1563,10 @@ signal_quality_context_complete_and_free (SignalQualityContext *ctx)
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
     g_object_unref (ctx->self);
-    if (ctx->port)
-        g_object_unref (ctx->port);
+    if (ctx->at_port)
+        g_object_unref (ctx->at_port);
+    if (ctx->qcdm_port)
+        g_object_unref (ctx->qcdm_port);
     g_free (ctx);
 }
 
@@ -1643,7 +1646,7 @@ signal_quality_csq (SignalQualityContext *ctx)
 {
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (ctx->self),
-        MM_AT_SERIAL_PORT (ctx->port),
+        MM_AT_SERIAL_PORT (ctx->at_port),
         signal_quality_csq_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -1692,7 +1695,7 @@ signal_quality_cind_ready (MMBroadbandModem *self,
     indicators = mm_3gpp_parse_cind_read_response (result, &error);
     if (!indicators) {
         mm_dbg ("(%s) Could not parse CIND signal quality results: %s",
-                mm_port_get_device (MM_PORT (ctx->port)),
+                mm_port_get_device (MM_PORT (ctx->at_port)),
                 error->message);
         g_clear_error (&error);
         goto try_csq;
@@ -1701,7 +1704,7 @@ signal_quality_cind_ready (MMBroadbandModem *self,
     if (indicators->len < self->priv->modem_cind_indicator_signal_quality) {
         mm_dbg ("(%s) Could not parse CIND signal quality results; signal "
                 "index (%u) outside received range (0-%u)",
-                mm_port_get_device (MM_PORT (ctx->port)),
+                mm_port_get_device (MM_PORT (ctx->at_port)),
                 self->priv->modem_cind_indicator_signal_quality,
                 indicators->len);
     } else {
@@ -1736,7 +1739,7 @@ static void
 signal_quality_cind (SignalQualityContext *ctx)
 {
     mm_base_modem_at_command_full (MM_BASE_MODEM (ctx->self),
-                                   MM_AT_SERIAL_PORT (ctx->port),
+                                   MM_AT_SERIAL_PORT (ctx->at_port),
                                    "+CIND?",
                                    3,
                                    FALSE,
@@ -1826,7 +1829,7 @@ signal_quality_qcdm (SignalQualityContext *ctx)
         pilot_sets->len = qcdm_cmd_pilot_sets_new ((char *) pilot_sets->data, 25);
         g_assert (pilot_sets->len);
 
-        mm_qcdm_serial_port_queue_command (MM_QCDM_SERIAL_PORT (ctx->port),
+        mm_qcdm_serial_port_queue_command (MM_QCDM_SERIAL_PORT (ctx->qcdm_port),
                                            pilot_sets,
                                            3,
                                            NULL,
@@ -1856,21 +1859,19 @@ modem_load_signal_quality (MMIfaceModem *self,
                                              user_data,
                                              modem_load_signal_quality);
 
-    /* Check whether we can get a non-connected AT port */
-    ctx->port = (MMSerialPort *)mm_base_modem_get_best_at_port (MM_BASE_MODEM (self), &error);
-    if (ctx->port) {
+    /* Prefer QCDM signal quality checks for CDMA-only modems that have a QCDM port */
+    ctx->qcdm_port = (MMSerialPort *)mm_base_modem_get_port_qcdm (MM_BASE_MODEM (self));
+    if (mm_iface_modem_is_cdma_only (self) && ctx->qcdm_port) {
+        signal_quality_qcdm (ctx);
+        return;
+    }
+
+    ctx->at_port = (MMSerialPort *)mm_base_modem_get_best_at_port (MM_BASE_MODEM (self), &error);
+    if (ctx->at_port) {
         if (MM_BROADBAND_MODEM (self)->priv->modem_cind_supported)
             signal_quality_cind (ctx);
         else
             signal_quality_csq (ctx);
-        return;
-    }
-
-    /* If no best AT port available (all connected), try with QCDM ports */
-    ctx->port = (MMSerialPort *)mm_base_modem_get_port_qcdm (MM_BASE_MODEM (self));
-    if (ctx->port) {
-        g_error_free (error);
-        signal_quality_qcdm (ctx);
         return;
     }
 
