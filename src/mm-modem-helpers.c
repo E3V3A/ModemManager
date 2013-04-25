@@ -232,10 +232,16 @@ mm_new_iso8601_time (guint year,
     g_string_append_printf (str, "%04d-%02d-%02dT%02d:%02d:%02d",
                             year, month, day, hour, minute, second);
     if (have_offset) {
-        g_string_append_printf (str, "%c%02d:%02d",
-                                offset_minutes >= 0 ? '+' : '-',
-                                offset_minutes / 60,
-                                offset_minutes % 60);
+        if (offset_minutes >=0 ) {
+            g_string_append_printf (str, "+%02d:%02d",
+                                    offset_minutes / 60,
+                                    offset_minutes % 60);
+        } else {
+            offset_minutes *= -1;
+            g_string_append_printf (str, "-%02d:%02d",
+                                    offset_minutes / 60,
+                                    offset_minutes % 60);
+        }
     }
     return g_string_free (str, FALSE);
 }
