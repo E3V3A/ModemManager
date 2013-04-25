@@ -229,7 +229,7 @@ mm_new_iso8601_time (guint year,
     GString *str;
 
     str = g_string_sized_new (30);
-    g_string_append_printf (str, "%04d/%02d/%02d %02d:%02d:%02d",
+    g_string_append_printf (str, "%04d-%02d-%02dT%02d:%02d:%02d",
                             year, month, day, hour, minute, second);
     if (have_offset) {
         g_string_append_printf (str, "%c%02d:%02d",
