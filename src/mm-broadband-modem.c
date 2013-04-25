@@ -6890,9 +6890,13 @@ setup_registration_checks_context_complete_and_free (SetupRegistrationChecksCont
              * for the specific step, or subclass this setup and return
              * FALSE themselves. */
             if (ctx->has_sprint_commands) {
-                mm_dbg ("Will skip CDMA1x Serving System check, "
-                        "we do have Sprint commands");
-                results->skip_at_cdma1x_serving_system_step = TRUE;
+                /* If a QCDM port exists, we can use that for better serving
+                 * system checks than the Sprint commands. */
+                if (!mm_base_modem_peek_port_qcdm (MM_BASE_MODEM (ctx->self))) {
+                    mm_dbg ("Will skip CDMA1x Serving System check, "
+                            "we do have Sprint commands but no QCDM port");
+                    results->skip_at_cdma1x_serving_system_step = TRUE;
+                }
             } else {
                 /* If there aren't Sprint specific commands, and the detailed
                  * registration state getter wasn't subclassed, skip the step */
