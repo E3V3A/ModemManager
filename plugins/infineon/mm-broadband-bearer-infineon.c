@@ -347,7 +347,7 @@ authenticate_ready (MMBaseModem *modem,
                     Dial3gppContext *ctx)
 {
     GError *error = NULL;
-    gchar *command;
+    gchar *command = NULL;
 
     /* If cancelled, complete */
     if (dial_3gpp_context_complete_and_free_if_cancelled (ctx))
