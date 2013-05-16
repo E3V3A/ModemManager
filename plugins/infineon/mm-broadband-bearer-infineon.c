@@ -414,7 +414,7 @@ authenticate (Dial3gppContext *ctx)
         g_free (encoded_user);
         g_free (encoded_password);
     } else
-        command = g_strdup ("AT+XGAUTH=%u,0,\"\",\"\"");
+        command = g_strdup_printf ("AT+XGAUTH=%u,0,\"\",\"\"", ctx->cid);
 
     mm_base_modem_at_command_full (ctx->modem,
                                    ctx->primary,
