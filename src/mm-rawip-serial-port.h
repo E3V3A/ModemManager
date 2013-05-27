@@ -46,6 +46,6 @@ struct _MMRawipSerialPortClass {
 GType mm_rawip_serial_port_get_type (void);
 
 MMRawipSerialPort *mm_rawip_serial_port_new (const gchar *name,
-					     const gchar *net_device_name);
+                                             const gchar *net_device_name);
 
 #endif /* MM_RAWIP_SERIAL_PORT_H */
