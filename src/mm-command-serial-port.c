@@ -549,8 +549,10 @@ channel_enable (MMCommandSerialPort *self, gboolean enable)
     /* Don't reset the fd here! */
 }
 
-static void
-data_watch_enable (MMSerialPort *_self, gint fd)
+static gboolean
+data_watch_enable (MMSerialPort *_self,
+                   gint fd,
+                   GError **error)
 {
     MMCommandSerialPort *self = MM_COMMAND_SERIAL_PORT (_self);
     gint i;
@@ -564,7 +566,7 @@ data_watch_enable (MMSerialPort *_self, gint fd)
                                                G_CALLBACK (port_connected),
                                                NULL);
         channel_enable (self, fd >= 0);
-        return;
+        return TRUE;
     }
 
     /* Disabling... */
@@ -617,6 +619,7 @@ data_watch_enable (MMSerialPort *_self, gint fd)
     g_clear_object (&self->priv->cancellable);
 
     self->priv->fd = -1;
+    return TRUE;
 }
 
 /*****************************************************************************/

@@ -64,7 +64,7 @@ struct _MMSerialPortClass {
     gboolean (*config_fd)         (MMSerialPort *self, gint fd, GError **error);
 
     /* Called to setup data watchers */
-    void     (*data_watch_enable) (MMSerialPort *self, gint fd);
+    gboolean (*data_watch_enable) (MMSerialPort *self, gint fd, GError **error);
 
     /* Called to configure the serial port after it's opened. Errors, if any,
      * should get ignored. */

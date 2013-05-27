@@ -469,7 +469,8 @@ mm_serial_port_open (MMSerialPort *self, GError **error)
 
     /* Call subclass's data watch enabling */
     g_warn_if_fail (MM_SERIAL_PORT_GET_CLASS (self)->data_watch_enable);
-    MM_SERIAL_PORT_GET_CLASS (self)->data_watch_enable (self, self->priv->fd);
+    if (!MM_SERIAL_PORT_GET_CLASS (self)->data_watch_enable (self, self->priv->fd, error))
+        goto error;
 
 success:
     self->priv->open_count++;
@@ -530,7 +531,7 @@ mm_serial_port_close (MMSerialPort *self)
     mm_dbg ("(%s) closing serial port...", device);
 
     /* Disable data watch in subclass */
-    MM_SERIAL_PORT_GET_CLASS (self)->data_watch_enable (self, -1);
+    MM_SERIAL_PORT_GET_CLASS (self)->data_watch_enable (self, -1, NULL);
 
     mm_port_set_connected (MM_PORT (self), FALSE);
 
