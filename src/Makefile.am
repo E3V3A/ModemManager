@@ -84,6 +84,8 @@ libserial_la_SOURCES = \
 	mm-port.h \
 	mm-serial-port.c \
 	mm-serial-port.h \
+	mm-command-serial-port.c \
+	mm-command-serial-port.h \
 	mm-at-serial-port.c \
 	mm-at-serial-port.h \
 	mm-qcdm-serial-port.c \

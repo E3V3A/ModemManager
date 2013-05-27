@@ -20,7 +20,7 @@
 #include <glib.h>
 #include <glib-object.h>
 
-#include "mm-serial-port.h"
+#include "mm-command-serial-port.h"
 
 #define MM_TYPE_QCDM_SERIAL_PORT            (mm_qcdm_serial_port_get_type ())
 #define MM_QCDM_SERIAL_PORT(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), MM_TYPE_QCDM_SERIAL_PORT, MMQcdmSerialPort))
@@ -38,11 +38,11 @@ typedef void (*MMQcdmSerialResponseFn)     (MMQcdmSerialPort *port,
                                             gpointer user_data);
 
 struct _MMQcdmSerialPort {
-    MMSerialPort parent;
+    MMCommandSerialPort parent;
 };
 
 struct _MMQcdmSerialPortClass {
-    MMSerialPortClass parent;
+    MMCommandSerialPortClass parent;
 };
 
 GType mm_qcdm_serial_port_get_type (void);

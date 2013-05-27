@@ -667,7 +667,7 @@ setup_ports (MMBroadbandModem *self)
         NULL, NULL, NULL);
 
     g_object_set (mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
-                  MM_SERIAL_PORT_SEND_DELAY, (guint64) 0,
+                  MM_COMMAND_SERIAL_PORT_SEND_DELAY, (guint64) 0,
                   /* built-in echo removal conflicts with unsolicited _OWANCALL
                    * messages, which are not <CR><LF> prefixed. */
                   MM_AT_SERIAL_PORT_REMOVE_ECHO, FALSE,

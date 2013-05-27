@@ -1143,11 +1143,11 @@ serial_open_at (MMPortProbe *self)
         }
 
         g_object_set (task->serial,
-                      MM_SERIAL_PORT_SEND_DELAY,     task->at_send_delay,
-                      MM_AT_SERIAL_PORT_REMOVE_ECHO, task->at_remove_echo,
-                      MM_AT_SERIAL_PORT_SEND_LF,     task->at_send_lf,
-                      MM_PORT_CARRIER_DETECT,        FALSE,
-                      MM_SERIAL_PORT_SPEW_CONTROL,   TRUE,
+                      MM_COMMAND_SERIAL_PORT_SEND_DELAY,   task->at_send_delay,
+                      MM_AT_SERIAL_PORT_REMOVE_ECHO,       task->at_remove_echo,
+                      MM_AT_SERIAL_PORT_SEND_LF,           task->at_send_lf,
+                      MM_PORT_CARRIER_DETECT,              FALSE,
+                      MM_COMMAND_SERIAL_PORT_SPEW_CONTROL, TRUE,
                       NULL);
 
         parser = mm_serial_parser_v1_new ();
