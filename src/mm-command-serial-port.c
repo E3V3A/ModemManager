@@ -839,7 +839,6 @@ mm_command_serial_port_class_init (MMCommandSerialPortClass *klass)
     object_class->dispose = dispose;
     object_class->finalize = finalize;
     serial_port_class->data_watch_enable = data_watch_enable;
-
     klass->handle_response = real_handle_response;
 
     /* Properties */
