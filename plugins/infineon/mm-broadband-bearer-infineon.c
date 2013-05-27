@@ -30,11 +30,15 @@
 #include "mm-broadband-bearer-infineon.h"
 #include "mm-log.h"
 #include "mm-modem-helpers.h"
+#include "mm-rawip-serial-port.h"
 
 G_DEFINE_TYPE (MMBroadbandBearerInfineon, mm_broadband_bearer_infineon, MM_TYPE_BROADBAND_BEARER)
 
 struct _MMBroadbandBearerInfineonPrivate {
     MMBearerIpConfig *current_ip_config;
+    gchar *rawip_device_name;
+    MMRawipSerialPort *rawip;
+    MMPort *rawip_device;
 };
 
 /*****************************************************************************/
@@ -140,12 +144,36 @@ parse_xdns_query_response (const gchar *reply,
     return success;
 }
 
+static gchar *
+create_tun_device_name (MMBroadbandBearerInfineon *self)
+{
+    const gchar *str;
+    gchar *path;
+    guint index;
+
+    /* Just pick the bearer index from the path, and add it to the name */
+    g_object_get (self,
+                  MM_BEARER_PATH, &path,
+                  NULL);
+    g_assert (path);
+
+    str = g_strrstr (path, "/");
+    g_assert (str != NULL);
+    str++;
+
+    g_assert (mm_get_uint_from_str (str, &index));
+    g_free (path);
+
+    return g_strdup_printf ("bearer%u", index);
+}
+
 static void
 data_ready (MMBaseModem *modem,
             GAsyncResult *res,
             Dial3gppContext *ctx)
 {
     GError *error = NULL;
+    gchar *tty_device;
 
     /* If cancelled, complete */
     if (dial_3gpp_context_complete_and_free_if_cancelled (ctx))
@@ -164,10 +192,30 @@ data_ready (MMBaseModem *modem,
     g_warn_if_fail (ctx->self->priv->current_ip_config == NULL);
     ctx->self->priv->current_ip_config = g_object_ref (ctx->ip_config);
 
-    /* TODO: setup TUN/TAP? */
+    /* Create TUN device */
+    tty_device = g_strdup_printf ("/dev/%s",
+                                  mm_port_get_device (MM_PORT (mm_base_modem_peek_port_primary (modem))));
+    g_free (ctx->self->priv->rawip_device_name);
+    ctx->self->priv->rawip_device_name = create_tun_device_name (ctx->self);
+    mm_dbg ("Creating TUN device '%s<->%s'...", tty_device, ctx->self->priv->rawip_device_name);
+    ctx->self->priv->rawip_device = g_object_new (MM_TYPE_PORT,
+                                                  MM_PORT_DEVICE, ctx->self->priv->rawip_device_name,
+                                                  MM_PORT_SUBSYS, MM_PORT_SUBSYS_NET,
+                                                  MM_PORT_TYPE, MM_PORT_TYPE_NET,
+                                                  NULL);
+    ctx->self->priv->rawip = mm_rawip_serial_port_new (tty_device, ctx->self->priv->rawip_device_name);
+    g_free (tty_device);
+
+    if (!mm_serial_port_open (MM_SERIAL_PORT (ctx->self->priv->rawip), &error)) {
+        g_clear_object (&ctx->self->priv->rawip_device);
+        g_clear_object (&ctx->self->priv->rawip);
+        g_simple_async_result_take_error (ctx->result, error);
+        dial_3gpp_context_complete_and_free (ctx);
+        return;
+    }
 
     g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                               g_object_ref (ctx->primary),
+                                               g_object_ref (ctx->self->priv->rawip_device),
                                                g_object_unref);
     dial_3gpp_context_complete_and_free (ctx);
 }
@@ -564,6 +612,8 @@ dispose (GObject *object)
     MMBroadbandBearerInfineon *self = MM_BROADBAND_BEARER_INFINEON (object);
 
     g_clear_object (&self->priv->current_ip_config);
+    g_clear_object (&self->priv->rawip_device);
+    g_clear_object (&self->priv->rawip);
 
     G_OBJECT_CLASS (mm_broadband_bearer_infineon_parent_class)->dispose (object);
 }
