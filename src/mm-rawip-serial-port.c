@@ -123,6 +123,7 @@ tun_write_available (GIOChannel *source,
                                            NULL);
 
         if (write_count > 0) {
+            mm_dbg ("[TUN] write %u bytes", (guint)write_count);
             i += write_count;
             self->priv->tty_channel_buffer_n -= write_count;
         }
@@ -177,8 +178,10 @@ tun_read_available (GIOChannel *source,
                                           &read_count,
                                           NULL);
 
-        if (read_count > 0)
+        if (read_count > 0) {
+            mm_dbg ("[TUN] read %u bytes", (guint)read_count);
             self->priv->tun_channel_buffer_n += read_count;
+        }
     } while (status == G_IO_STATUS_NORMAL && read_count > 0);
 
     /* If something read, setup writing */
@@ -300,6 +303,7 @@ tty_write_available (GIOChannel *source,
                                            NULL);
 
         if (write_count > 0) {
+            mm_dbg ("[TTY] write %u bytes", (guint)write_count);
             i += write_count;
             self->priv->tun_channel_buffer_n -= write_count;
         }
@@ -354,8 +358,10 @@ tty_read_available (GIOChannel *source,
                                           &read_count,
                                           NULL);
 
-        if (read_count > 0)
+        if (read_count > 0) {
+            mm_dbg ("[TTY] read %u bytes", (guint)read_count);
             self->priv->tty_channel_buffer_n += read_count;
+        }
     } while (status == G_IO_STATUS_NORMAL && read_count > 0);
 
     /* If something read, setup writing */
