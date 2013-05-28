@@ -418,6 +418,11 @@ authenticate_ready (MMBaseModem *modem,
     case MM_BEARER_IP_FAMILY_IPV4V6:
         command = g_strdup_printf ("AT+XDNS=%u,3", ctx->cid);
         break;
+    case MM_BEARER_IP_FAMILY_UNKNOWN:
+        /* Default to IPv4 */
+        mm_dbg ("IP family not set, defaulting to IPv4");
+        command = g_strdup_printf ("AT+XDNS=%u,1", ctx->cid);
+        break;
     default:
         g_warn_if_reached ();
         break;
