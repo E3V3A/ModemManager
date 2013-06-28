@@ -43,6 +43,7 @@ struct _MMBroadbandBearerHuaweiPrivate {
 
 typedef enum {
     CONNECT_3GPP_CONTEXT_STEP_FIRST = 0,
+    CONNECT_3GPP_CONTEXT_STEP_IPV6CAP,
     CONNECT_3GPP_CONTEXT_STEP_NDISDUP,
     CONNECT_3GPP_CONTEXT_STEP_NDISSTATQRY,
     CONNECT_3GPP_CONTEXT_STEP_LAST
@@ -56,7 +57,10 @@ typedef struct {
     GCancellable *cancellable;
     GSimpleAsyncResult *result;
     Connect3gppContextStep step;
+    MMBearerIpFamily ip_family;
     guint check_count;
+    gboolean ipv4_connected;
+    gboolean ipv6_connected;
 } Connect3gppContext;
 
 static void
@@ -143,7 +147,16 @@ connect_ndisstatqry_check_ready (MMBaseModem *modem,
     }
 
     /* Connected in IPv4? */
-    if (ipv4_available && ipv4_connected) {
+    if (ipv4_available && ipv4_connected)
+        ctx->ipv4_connected = TRUE;
+
+    /* Connected in IPv6? */
+    if (ipv6_available && ipv6_connected)
+        ctx->ipv6_connected = TRUE;
+
+    if ((ctx->ip_family == MM_BEARER_IP_FAMILY_IPV4 && ctx->ipv4_connected) ||
+        (ctx->ip_family == MM_BEARER_IP_FAMILY_IPV6 && ctx->ipv6_connected) ||
+        (ctx->ip_family == MM_BEARER_IP_FAMILY_IPV4V6 && ctx->ipv4_connected && ctx->ipv6_connected)) {
         /* Success! */
         ctx->step++;
         connect_3gpp_context_step (ctx);
@@ -176,6 +189,31 @@ connect_ndisdup_ready (MMBaseModem *modem,
         g_simple_async_result_take_error (ctx->result, error);
         connect_3gpp_context_complete_and_free (ctx);
         return;
+    }
+
+    /* Go to next step */
+    ctx->step++;
+    connect_3gpp_context_step (ctx);
+}
+
+static void
+connect_ipv6cap_ready (MMBaseModem *modem,
+                       GAsyncResult *res,
+                       MMBroadbandBearerHuawei *self)
+{
+    Connect3gppContext *ctx;
+    GError *error = NULL;
+
+    ctx = self->priv->connect_pending;
+    g_assert (ctx != NULL);
+
+    /* Balance refcount */
+    g_object_unref (self);
+
+    /* If there is an error, just keep on anyways */
+    if (!mm_base_modem_at_command_full_finish (modem, res, &error)) {
+        mm_dbg ("Requesting IP family failed: %s", error->message);
+        g_error_free (error);
     }
 
     /* Go to next step */
@@ -237,35 +275,58 @@ connect_3gpp_context_step (Connect3gppContext *ctx)
     }
 
     switch (ctx->step) {
-    case CONNECT_3GPP_CONTEXT_STEP_FIRST: {
-        MMBearerIpFamily ip_family;
+    case CONNECT_3GPP_CONTEXT_STEP_FIRST:
+        /* Store the context */
+        ctx->self->priv->connect_pending = ctx;
+        ctx->step++;
+        /* Fall down to the next step */
 
-        ip_family = mm_bearer_properties_get_ip_type (mm_bearer_peek_config (MM_BEARER (ctx->self)));
-        if (ip_family == MM_BEARER_IP_FAMILY_NONE ||
-            ip_family == MM_BEARER_IP_FAMILY_ANY) {
-            gchar *ip_family_str;
+    case CONNECT_3GPP_CONTEXT_STEP_IPV6CAP: {
+        gchar *command;
+        guint32 huawei_ipv6_cap;
+        gchar *ip_family_str;
 
-            ip_family = mm_bearer_get_default_ip_family (MM_BEARER (ctx->self));
-            ip_family_str = mm_bearer_ip_family_build_string_from_mask (ip_family);
-            mm_dbg ("No specific IP family requested, defaulting to %s",
-                    ip_family_str);
+        ctx->ip_family = mm_bearer_properties_get_ip_type (mm_bearer_peek_config (MM_BEARER (ctx->self)));
+        if (ctx->ip_family == MM_BEARER_IP_FAMILY_NONE ||
+            ctx->ip_family == MM_BEARER_IP_FAMILY_ANY) {
+            ctx->ip_family = mm_bearer_get_default_ip_family (MM_BEARER (ctx->self));
+            ip_family_str = mm_bearer_ip_family_build_string_from_mask (ctx->ip_family);
+            mm_dbg ("No specific IP family requested, defaulting to %s", ip_family_str);
             g_free (ip_family_str);
         }
 
-        if (ip_family != MM_BEARER_IP_FAMILY_IPV4) {
-            g_simple_async_result_set_error (ctx->result,
-                                             MM_CORE_ERROR,
-                                             MM_CORE_ERROR_UNSUPPORTED,
-                                             "Only IPv4 is supported by this modem");
-            connect_3gpp_context_complete_and_free (ctx);
-            return;
+        switch (ctx->ip_family) {
+        case MM_BEARER_IP_FAMILY_IPV4:
+            huawei_ipv6_cap = 1;
+            break;
+        case MM_BEARER_IP_FAMILY_IPV6:
+            huawei_ipv6_cap = 2;
+            break;
+        case MM_BEARER_IP_FAMILY_IPV4V6:
+            huawei_ipv6_cap = 7;
+            break;
+        default:
+            ip_family_str = mm_bearer_ip_family_build_string_from_mask (ctx->ip_family);
+            mm_dbg ("Unknown IP family combination: %s, defaulting to IPv4", ip_family_str);
+            g_free (ip_family_str);
+            ctx->ip_family = MM_BEARER_IP_FAMILY_IPV4;
+            huawei_ipv6_cap = 1;
+            break;
         }
 
-        /* Store the context */
-        ctx->self->priv->connect_pending = ctx;
-
-        ctx->step++;
-        /* Fall down to the next step */
+        /* Request a given IP family */
+        command = g_strdup_printf ("^IPV6CAP=%u", huawei_ipv6_cap);
+        mm_base_modem_at_command_full (ctx->modem,
+                                       ctx->primary,
+                                       command,
+                                       3,
+                                       FALSE,
+                                       FALSE,
+                                       NULL,
+                                       (GAsyncReadyCallback)connect_ipv6cap_ready,
+                                       g_object_ref (ctx->self));
+        g_free (command);
+        return;
     }
 
     case CONNECT_3GPP_CONTEXT_STEP_NDISDUP: {
@@ -306,6 +367,15 @@ connect_3gpp_context_step (Connect3gppContext *ctx)
          * If too many retries, failed
          */
         if (ctx->check_count > 60) {
+            /* If we were requesting IPV4V6 and one of both got connected, just keep on */
+            if (ctx->ip_family == MM_BEARER_IP_FAMILY_IPV4V6 &&
+                (ctx->ipv4_connected || ctx->ipv6_connected)) {
+                /* Go to next step */
+                ctx->step++;
+                connect_3gpp_context_step (ctx);
+                return;
+            }
+
             /* Clear context */
             ctx->self->priv->connect_pending = NULL;
             g_simple_async_result_set_error (ctx->result,
@@ -329,25 +399,37 @@ connect_3gpp_context_step (Connect3gppContext *ctx)
                                        g_object_ref (ctx->self));
         return;
 
-    case CONNECT_3GPP_CONTEXT_STEP_LAST:
+    case CONNECT_3GPP_CONTEXT_STEP_LAST: {
+        MMBearerIpConfig *ipv4_config = NULL;
+        MMBearerIpConfig *ipv6_config = NULL;
+
         /* Clear context */
         ctx->self->priv->connect_pending = NULL;
 
         /* Setup result */
-        {
-            MMBearerIpConfig *ipv4_config;
 
+        if (ctx->ipv4_connected) {
             ipv4_config = mm_bearer_ip_config_new ();
             mm_bearer_ip_config_set_method (ipv4_config, MM_BEARER_IP_METHOD_DHCP);
-            g_simple_async_result_set_op_res_gpointer (
-                ctx->result,
-                mm_bearer_connect_result_new (ctx->data, ipv4_config, NULL),
-                (GDestroyNotify)mm_bearer_connect_result_unref);
-            g_object_unref (ipv4_config);
         }
 
+        if (ctx->ipv6_connected) {
+            ipv6_config = mm_bearer_ip_config_new ();
+            mm_bearer_ip_config_set_method (ipv6_config, MM_BEARER_IP_METHOD_DHCP);
+        }
+
+        g_simple_async_result_set_op_res_gpointer (
+            ctx->result,
+            mm_bearer_connect_result_new (ctx->data, ipv4_config, ipv6_config),
+            (GDestroyNotify)mm_bearer_connect_result_unref);
         connect_3gpp_context_complete_and_free (ctx);
+
+        if (ipv4_config)
+            g_object_unref (ipv4_config);
+        if (ipv6_config)
+            g_object_unref (ipv6_config);
         return;
+      }
     }
 }
 
