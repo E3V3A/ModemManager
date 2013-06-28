@@ -1737,6 +1737,135 @@ modem_3gpp_disable_unsolicited_events (MMIfaceModem3gpp *self,
 }
 
 /*****************************************************************************/
+/* Supported IP families loading (Modem interface) */
+
+static MMBearerIpFamily
+load_supported_ip_families_finish (MMIfaceModem *self,
+                                   GAsyncResult *res,
+                                   GError **error)
+{
+    if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
+        return MM_BEARER_IP_FAMILY_NONE;
+
+    return (MMBearerIpFamily) GPOINTER_TO_UINT (g_simple_async_result_get_op_res_gpointer (
+                                                    G_SIMPLE_ASYNC_RESULT (res)));
+}
+
+static void
+check_ndisdup_supported (MMBroadbandModemHuawei *self)
+{
+    MMPort *port;
+
+    /* If already checked, return */
+    if (self->priv->ndisdup_support != NDISDUP_SUPPORT_UNKNOWN)
+        return;
+
+    port = mm_base_modem_peek_best_data_port (MM_BASE_MODEM (self), MM_PORT_TYPE_NET);
+    if (port) {
+        GUdevDevice *net_port;
+        GUdevClient *client;
+
+        client = g_udev_client_new (NULL);
+        net_port = (g_udev_client_query_by_subsystem_and_name (
+                        client,
+                        "net",
+                        mm_port_get_device (port)));
+        if (g_udev_device_get_property_as_boolean (net_port, "ID_MM_HUAWEI_NDISDUP_SUPPORTED")) {
+            mm_dbg ("This device can support ndisdup feature");
+            self->priv->ndisdup_support = NDISDUP_SUPPORTED;
+        } else {
+            mm_dbg ("This device can not support ndisdup feature");
+            self->priv->ndisdup_support = NDISDUP_NOT_SUPPORTED;
+        }
+
+        g_object_unref (client);
+    } else {
+        mm_dbg ("No net device, this device can not support ndisdup feature");
+        self->priv->ndisdup_support = NDISDUP_NOT_SUPPORTED;
+    }
+}
+
+static void
+ipv6cap_test_ready (MMBaseModem *self,
+                    GAsyncResult *res,
+                    GSimpleAsyncResult *simple)
+{
+    GError *error = NULL;
+
+    mm_base_modem_at_command_full_finish (self, res, &error);
+    if (error) {
+        mm_dbg ("Failed to query supported IP capabilities: %s", error->message);
+        g_error_free (error);
+    }
+
+    /* TODO: Parse IPV6CAP=? response */
+
+    /* For now, assume all IPv4 and IPv6 are supported */
+    g_simple_async_result_set_op_res_gpointer (
+        simple,
+        GUINT_TO_POINTER (MM_BEARER_IP_FAMILY_IPV4 |
+                          MM_BEARER_IP_FAMILY_IPV6 |
+                          MM_BEARER_IP_FAMILY_IPV4V6),
+        NULL);
+    g_simple_async_result_complete (simple);
+    g_object_unref (simple);
+}
+
+static void
+parent_load_supported_ip_families_ready (MMIfaceModem *self,
+                                         GAsyncResult *res,
+                                         GSimpleAsyncResult *simple)
+{
+    GError *error = NULL;
+    MMBearerIpFamily mask;
+
+    mask = iface_modem_parent->load_supported_ip_families_finish (self, res, &error);
+    if (!mask)
+        g_simple_async_result_take_error (simple, error);
+    else
+        g_simple_async_result_set_op_res_gpointer (simple, GUINT_TO_POINTER (mask), NULL);
+    g_simple_async_result_complete (simple);
+    g_object_unref (simple);
+}
+
+static void
+load_supported_ip_families (MMIfaceModem *self,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+    GSimpleAsyncResult *result;
+
+    result = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        load_supported_ip_families);
+
+    /* Check whether NDISDUP is supported */
+    check_ndisdup_supported (MM_BROADBAND_MODEM_HUAWEI (self));
+
+    /* If NDISDUP not supported, use parent method */
+    if (MM_BROADBAND_MODEM_HUAWEI (self)->priv->ndisdup_support == NDISDUP_SUPPORTED) {
+        mm_base_modem_at_command_full (
+            MM_BASE_MODEM (self),
+            mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
+            "^IPV6CAP=?",
+            5,
+            TRUE, /* allow_cached */
+            FALSE, /* raw */
+            NULL, /* cancellable */
+            (GAsyncReadyCallback)ipv6cap_test_ready,
+            result);
+        return;
+    }
+
+    /* If NDISDUP not supported, use parent method */
+    iface_modem_parent->load_supported_ip_families (
+        MM_IFACE_MODEM (self),
+        (GAsyncReadyCallback)parent_load_supported_ip_families_ready,
+        result);
+}
+
+/*****************************************************************************/
 /* Create Bearer (Modem interface) */
 
 typedef struct {
@@ -1803,32 +1932,6 @@ broadband_bearer_new_ready (GObject *source,
 }
 
 static void
-create_bearer_for_net_port (CreateBearerContext *ctx)
-{
-    switch (ctx->self->priv->ndisdup_support) {
-    case NDISDUP_SUPPORT_UNKNOWN:
-        g_assert_not_reached ();
-    case NDISDUP_NOT_SUPPORTED:
-        mm_dbg ("^NDISDUP not supported, creating default bearer...");
-        mm_broadband_bearer_new (MM_BROADBAND_MODEM (ctx->self),
-                                 ctx->properties,
-                                 NULL, /* cancellable */
-                                 (GAsyncReadyCallback)broadband_bearer_new_ready,
-                                 ctx);
-        return;
-    case NDISDUP_SUPPORTED:
-        mm_dbg ("^NDISDUP supported, creating huawei bearer...");
-        mm_broadband_bearer_huawei_new (MM_BROADBAND_MODEM_HUAWEI (ctx->self),
-                                        ctx->properties,
-                                        NULL, /* cancellable */
-                                        (GAsyncReadyCallback)broadband_bearer_huawei_new_ready,
-                                        ctx);
-        return;
-    }
-}
-
-
-static void
 huawei_modem_create_bearer (MMIfaceModem *self,
                             MMBearerProperties *properties,
                             GAsyncReadyCallback callback,
@@ -1847,26 +1950,26 @@ huawei_modem_create_bearer (MMIfaceModem *self,
 
     port = mm_base_modem_peek_best_data_port (MM_BASE_MODEM (self), MM_PORT_TYPE_NET);
     if (port) {
-        GUdevDevice *net_port;
-        GUdevClient *client;
-
-        client = g_udev_client_new (NULL);
-        net_port = (g_udev_client_query_by_subsystem_and_name (
-                            client,
-                            "net",
-                            mm_port_get_device (port)));
-        if (g_udev_device_get_property_as_boolean (net_port, "ID_MM_HUAWEI_NDISDUP_SUPPORTED")) {
-            mm_dbg ("This device can support ndisdup feature");
-            ctx->self->priv->ndisdup_support = NDISDUP_SUPPORTED;
-        } else {
-            mm_dbg ("This device can not support ndisdup feature");
-            ctx->self->priv->ndisdup_support = NDISDUP_NOT_SUPPORTED;
+        switch (ctx->self->priv->ndisdup_support) {
+        case NDISDUP_SUPPORT_UNKNOWN:
+            g_assert_not_reached ();
+        case NDISDUP_NOT_SUPPORTED:
+            mm_dbg ("^NDISDUP not supported, creating default bearer...");
+            mm_broadband_bearer_new (MM_BROADBAND_MODEM (ctx->self),
+                                     ctx->properties,
+                                     NULL, /* cancellable */
+                                     (GAsyncReadyCallback)broadband_bearer_new_ready,
+                                     ctx);
+            return;
+        case NDISDUP_SUPPORTED:
+            mm_dbg ("^NDISDUP supported, creating huawei bearer...");
+            mm_broadband_bearer_huawei_new (MM_BROADBAND_MODEM_HUAWEI (ctx->self),
+                                            ctx->properties,
+                                            NULL, /* cancellable */
+                                            (GAsyncReadyCallback)broadband_bearer_huawei_new_ready,
+                                            ctx);
+            return;
         }
-
-        create_bearer_for_net_port (ctx);
-
-        g_object_unref (client);
-        return;
     }
 
     mm_dbg ("Creating default bearer...");
@@ -2749,6 +2852,8 @@ iface_modem_init (MMIfaceModem *iface)
     iface->set_current_modes_finish = set_current_modes_finish;
     iface->load_signal_quality = modem_load_signal_quality;
     iface->load_signal_quality_finish = modem_load_signal_quality_finish;
+    iface->load_supported_ip_families = load_supported_ip_families;
+    iface->load_supported_ip_families_finish = load_supported_ip_families_finish;
     iface->create_bearer = huawei_modem_create_bearer;
     iface->create_bearer_finish = huawei_modem_create_bearer_finish;
 }
