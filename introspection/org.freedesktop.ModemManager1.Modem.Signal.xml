@@ -60,6 +60,30 @@
             </para>
           </listitem>
         </varlistentry>
+        <varlistentry><term><literal>"rx0-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 0 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 1 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"tx-power"</literal></term>
+          <listitem>
+            <para>
+              The transmitted power, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
         </variablelist>
     -->
     <property name="Cdma" type="a{sv}" access="read" />
@@ -106,6 +130,30 @@
             </para>
           </listitem>
         </varlistentry>
+        <varlistentry><term><literal>"rx0-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 0 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 1 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"tx-power"</literal></term>
+          <listitem>
+            <para>
+              The transmitted power, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
         </variablelist>
     -->
     <property name="Evdo" type="a{sv}" access="read" />
@@ -125,6 +173,30 @@
             <para>
               The GSM RSSI (Received Signal Strength Indication), in dBm,
               given as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx0-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 0 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 1 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"tx-power"</literal></term>
+          <listitem>
+            <para>
+              The transmitted power, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
             </para>
           </listitem>
         </varlistentry>
@@ -155,6 +227,48 @@
             <para>
               The UMTS Ec/Io, in dBm, given as a floating point value
               (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx0-rscp"</literal></term>
+          <listitem>
+            <para>
+              The RSCP (Received Signal Code Power) in the chain 0 of the
+              receiver, in dBm, given as a floating point value (signature
+              <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-rscp"</literal></term>
+          <listitem>
+            <para>
+              The RSCP (Received Signal Code Power) in the chain 1 of the
+              receiver, in dBm, given as a floating point value (signature
+              <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx0-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 0 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 1 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"tx-power"</literal></term>
+          <listitem>
+            <para>
+              The transmitted power, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
             </para>
           </listitem>
         </varlistentry>
@@ -201,6 +315,46 @@
             <para>
               The LTE S/R ratio, in dB, given as
               a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx0-phase"</literal></term>
+          <listitem>
+            <para>
+              The LTE phase in the chain 0 of the receiver, in degrees, given as
+              a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-phase"</literal></term>
+          <listitem>
+            <para>
+              The LTE phase in the chain 1 of the receiver, in degrees, given as
+              a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx0-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 0 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"rx1-power"</literal></term>
+          <listitem>
+            <para>
+              The received power in the chain 1 of the receiver, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
+            </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry><term><literal>"tx-power"</literal></term>
+          <listitem>
+            <para>
+              The transmitted power, in dBm, given
+              as a floating point value (signature <literal>"d"</literal>).
             </para>
           </listitem>
         </varlistentry>

@@ -38,8 +38,16 @@ G_DEFINE_TYPE (MMSignal, mm_signal, G_TYPE_OBJECT)
 #define PROPERTY_RSRQ "rsrq"
 #define PROPERTY_RSRP "rsrp"
 #define PROPERTY_SNR  "snr"
+#define PROPERTY_RX0_RSCP  "rx0-rscp"
+#define PROPERTY_RX1_RSCP  "rx1-rscp"
+#define PROPERTY_RX0_PHASE "rx0-phase"
+#define PROPERTY_RX1_PHASE "rx1-phase"
+#define PROPERTY_RX0_POWER "rx0-power"
+#define PROPERTY_RX1_POWER "rx1-power"
+#define PROPERTY_TX_POWER  "tx-power"
 
 struct _MMSignalPrivate {
+    /* signal info */
     gdouble rssi;
     gdouble ecio;
     gdouble sinr;
@@ -47,6 +55,14 @@ struct _MMSignalPrivate {
     gdouble rsrq;
     gdouble rsrp;
     gdouble snr;
+    /* power info */
+    gdouble rx0_rscp;
+    gdouble rx1_rscp;
+    gdouble rx0_phase;
+    gdouble rx1_phase;
+    gdouble rx0_power;
+    gdouble rx1_power;
+    gdouble tx_power;
 };
 
 /*****************************************************************************/
@@ -253,6 +269,209 @@ mm_signal_set_snr (MMSignal *self,
 /*****************************************************************************/
 
 /**
+ * mm_signal_get_rx0_rscp:
+ * @self: a #MMSignal.
+ *
+ * Gets the RSCP (Received Signal Code Power) in the chain 0 of the receiver, in dBm.
+ *
+ * Only applicable to UMTS.
+ *
+ * Returns: the RSCP, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx0_rscp (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx0_rscp;
+}
+
+void
+mm_signal_set_rx0_rscp (MMSignal *self,
+                        gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx0_rscp = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_rx1_rscp:
+ * @self: a #MMSignal.
+ *
+ * Gets the RSCP (Received Signal Code Power) in chain 1 of the receiver, in dBm.
+ *
+ * Only applicable to UMTS.
+ *
+ * Returns: the RSCP, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx1_rscp (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx1_rscp;
+}
+
+void
+mm_signal_set_rx1_rscp (MMSignal *self,
+                        gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx1_rscp = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_rx0_phase:
+ * @self: a #MMSignal.
+ *
+ * Gets the phase in the chain 0 of the receiver, in degrees.
+ *
+ * Only applicable to LTE.
+ *
+ * Returns: the phase, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx0_phase (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx0_phase;
+}
+
+void
+mm_signal_set_rx0_phase (MMSignal *self,
+                         gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx0_phase = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_rx1_phase:
+ * @self: a #MMSignal.
+ *
+ * Gets the phase in the chain 1 of the receiver, in degrees.
+ *
+ * Only applicable to LTE.
+ *
+ * Returns: the phase, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx1_phase (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx1_phase;
+}
+
+void
+mm_signal_set_rx1_phase (MMSignal *self,
+                         gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx1_phase = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_rx0_power:
+ * @self: a #MMSignal.
+ *
+ * Gets the received power in the chain 0 of the receiver, in dBm.
+ *
+ * Only applicable when the radio is tuned.
+ *
+ * Returns: the received power, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx0_power (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx0_power;
+}
+
+void
+mm_signal_set_rx0_power (MMSignal *self,
+                         gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx0_power = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_rx1_power:
+ * @self: a #MMSignal.
+ *
+ * Gets the received power in the chain 1 of the receiver, in dBm.
+ *
+ * Only applicable when the radio is tuned.
+ *
+ * Returns: the received power, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_rx1_power (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->rx1_power;
+}
+
+void
+mm_signal_set_rx1_power (MMSignal *self,
+                         gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->rx1_power = value;
+}
+
+/*****************************************************************************/
+
+/**
+ * mm_signal_get_tx_power:
+ * @self: a #MMSignal.
+ *
+ * Gets the transmitted power, in dBm.
+ *
+ * Only applicable when the device is in traffic.
+ *
+ * Returns: the transmitted power, or %MM_SIGNAL_UNKNOWN if unknown.
+ */
+gdouble
+mm_signal_get_tx_power (MMSignal *self)
+{
+    g_return_val_if_fail (MM_IS_SIGNAL (self), MM_SIGNAL_UNKNOWN);
+
+    return self->priv->tx_power;
+}
+
+void
+mm_signal_set_tx_power (MMSignal *self,
+                        gdouble value)
+{
+    g_return_if_fail (MM_IS_SIGNAL (self));
+
+    self->priv->tx_power = value;
+}
+
+/*****************************************************************************/
+
+/**
  * mm_signal_get_dictionary:
  * @self: A #MMSignal.
  *
@@ -315,6 +534,48 @@ mm_signal_get_dictionary (MMSignal *self)
                                PROPERTY_SNR,
                                g_variant_new_double (self->priv->snr));
 
+    if (self->priv->rx0_rscp != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX0_RSCP,
+                               g_variant_new_double (self->priv->rx0_rscp));
+
+    if (self->priv->rx1_rscp != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX1_RSCP,
+                               g_variant_new_double (self->priv->rx1_rscp));
+
+    if (self->priv->rx0_phase != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX0_PHASE,
+                               g_variant_new_double (self->priv->rx0_phase));
+
+    if (self->priv->rx1_phase != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX1_PHASE,
+                               g_variant_new_double (self->priv->rx1_phase));
+
+    if (self->priv->rx0_power != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX0_POWER,
+                               g_variant_new_double (self->priv->rx0_power));
+
+    if (self->priv->rx1_power != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_RX1_POWER,
+                               g_variant_new_double (self->priv->rx1_power));
+
+    if (self->priv->tx_power != MM_SIGNAL_UNKNOWN)
+        g_variant_builder_add (&builder,
+                               "{sv}",
+                               PROPERTY_TX_POWER,
+                               g_variant_new_double (self->priv->tx_power));
+
     return g_variant_ref_sink (g_variant_builder_end (&builder));
 }
 
@@ -340,6 +601,20 @@ consume_variant (MMSignal *self,
         self->priv->rsrq = g_variant_get_double (value);
     else if (g_str_equal (key, PROPERTY_SNR))
         self->priv->snr = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX0_RSCP))
+        self->priv->rx0_rscp = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX1_RSCP))
+        self->priv->rx1_rscp = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX0_PHASE))
+        self->priv->rx0_phase = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX1_PHASE))
+        self->priv->rx1_phase = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX0_POWER))
+        self->priv->rx0_power = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_RX1_POWER))
+        self->priv->rx1_power = g_variant_get_double (value);
+    else if (g_str_equal (key, PROPERTY_TX_POWER))
+        self->priv->tx_power = g_variant_get_double (value);
     else {
         /* Set error */
         g_set_error (error,
@@ -430,6 +705,13 @@ mm_signal_init (MMSignal *self)
     self->priv->rsrq = MM_SIGNAL_UNKNOWN;
     self->priv->rsrp = MM_SIGNAL_UNKNOWN;
     self->priv->snr  = MM_SIGNAL_UNKNOWN;
+    self->priv->rx0_rscp  = MM_SIGNAL_UNKNOWN;
+    self->priv->rx1_rscp  = MM_SIGNAL_UNKNOWN;
+    self->priv->rx0_phase = MM_SIGNAL_UNKNOWN;
+    self->priv->rx1_phase = MM_SIGNAL_UNKNOWN;
+    self->priv->rx0_power = MM_SIGNAL_UNKNOWN;
+    self->priv->rx1_power = MM_SIGNAL_UNKNOWN;
+    self->priv->tx_power  = MM_SIGNAL_UNKNOWN;
 }
 
 static void

@@ -810,6 +810,13 @@ mm_signal_get_io
 mm_signal_get_rsrp
 mm_signal_get_rsrq
 mm_signal_get_snr
+mm_signal_get_rx0_rscp
+mm_signal_get_rx1_rscp
+mm_signal_get_rx0_phase
+mm_signal_get_rx1_phase
+mm_signal_get_rx0_power
+mm_signal_get_rx1_power
+mm_signal_get_tx_power
 <SUBSECTION Private>
 mm_signal_new
 mm_signal_new_from_dictionary
@@ -821,6 +828,13 @@ mm_signal_set_io
 mm_signal_set_rsrp
 mm_signal_set_rsrq
 mm_signal_set_snr
+mm_signal_set_rx0_rscp
+mm_signal_set_rx1_rscp
+mm_signal_set_rx0_phase
+mm_signal_set_rx1_phase
+mm_signal_set_rx0_power
+mm_signal_set_rx1_power
+mm_signal_set_tx_power
 <SUBSECTION Standard>
 MMSignalClass
 MMSignalPrivate

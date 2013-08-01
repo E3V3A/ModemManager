@@ -62,6 +62,7 @@ struct _MMSignalClass {
 
 GType mm_signal_get_type (void);
 
+/* signal info */
 gdouble  mm_signal_get_rssi (MMSignal *self);
 gdouble  mm_signal_get_ecio (MMSignal *self);
 gdouble  mm_signal_get_sinr (MMSignal *self);
@@ -69,6 +70,14 @@ gdouble  mm_signal_get_io   (MMSignal *self);
 gdouble  mm_signal_get_rsrq (MMSignal *self);
 gdouble  mm_signal_get_rsrp (MMSignal *self);
 gdouble  mm_signal_get_snr  (MMSignal *self);
+/* power info */
+gdouble  mm_signal_get_rx0_rscp  (MMSignal *self);
+gdouble  mm_signal_get_rx1_rscp  (MMSignal *self);
+gdouble  mm_signal_get_rx0_phase (MMSignal *self);
+gdouble  mm_signal_get_rx1_phase (MMSignal *self);
+gdouble  mm_signal_get_rx0_power (MMSignal *self);
+gdouble  mm_signal_get_rx1_power (MMSignal *self);
+gdouble  mm_signal_get_tx_power  (MMSignal *self);
 
 /*****************************************************************************/
 /* ModemManager/libmm-glib/mmcli specific methods */
@@ -83,6 +92,7 @@ MMSignal *mm_signal_new (void);
 MMSignal *mm_signal_new_from_dictionary (GVariant *dictionary,
                                          GError **error);
 
+/* signal info */
 void mm_signal_set_rssi (MMSignal *self, gdouble value);
 void mm_signal_set_ecio (MMSignal *self, gdouble value);
 void mm_signal_set_sinr (MMSignal *self, gdouble value);
@@ -90,6 +100,14 @@ void mm_signal_set_io   (MMSignal *self, gdouble value);
 void mm_signal_set_rsrq (MMSignal *self, gdouble value);
 void mm_signal_set_rsrp (MMSignal *self, gdouble value);
 void mm_signal_set_snr  (MMSignal *self, gdouble value);
+/* power info */
+void mm_signal_set_rx0_rscp  (MMSignal *self, gdouble value);
+void mm_signal_set_rx1_rscp  (MMSignal *self, gdouble value);
+void mm_signal_set_rx0_phase (MMSignal *self, gdouble value);
+void mm_signal_set_rx1_phase (MMSignal *self, gdouble value);
+void mm_signal_set_rx0_power (MMSignal *self, gdouble value);
+void mm_signal_set_rx1_power (MMSignal *self, gdouble value);
+void mm_signal_set_tx_power  (MMSignal *self, gdouble value);
 
 #endif
 
