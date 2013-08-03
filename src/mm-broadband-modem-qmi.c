@@ -8663,6 +8663,7 @@ typedef enum {
     SIGNAL_LOAD_VALUES_STEP_SIGNAL_FIRST,
     SIGNAL_LOAD_VALUES_STEP_SIGNAL_INFO,
     SIGNAL_LOAD_VALUES_STEP_SIGNAL_STRENGTH,
+    SIGNAL_LOAD_VALUES_STEP_TX_RX,
     SIGNAL_LOAD_VALUES_STEP_SIGNAL_LAST
 } SignalLoadValuesStep;
 
@@ -8680,6 +8681,7 @@ typedef struct {
     GSimpleAsyncResult *result;
     SignalLoadValuesStep step;
     SignalLoadValuesResult *values_result;
+    QmiNasRadioInterface tx_rx_iface;
 } SignalLoadValuesContext;
 
 static void
@@ -8754,6 +8756,108 @@ signal_load_values_finish (MMIfaceModemSignal *self,
 }
 
 static void signal_load_values_context_step (SignalLoadValuesContext *ctx);
+
+static void
+signal_load_values_get_tx_rx_info_ready (QmiClientNas *client,
+                                         GAsyncResult *res,
+                                         SignalLoadValuesContext *ctx)
+{
+    QmiMessageNasGetTxRxInfoOutput *output;
+
+    output = qmi_client_nas_get_tx_rx_info_finish (client, res, NULL);
+    if (output && qmi_message_nas_get_tx_rx_info_output_get_result (output, NULL)) {
+        MMSignal *signal_info;
+        gboolean is_radio_tuned;
+        gboolean is_in_traffic;
+        gint32 power;
+        gint32 ecio;
+        gint32 rscp;
+        gint32 rsrp;
+        guint32 phase;
+
+        switch (ctx->tx_rx_iface) {
+        case QMI_NAS_RADIO_INTERFACE_CDMA_1X:
+            if (!ctx->values_result->cdma)
+                ctx->values_result->cdma = mm_signal_new ();
+            signal_info = ctx->values_result->cdma;
+            break;
+        case QMI_NAS_RADIO_INTERFACE_CDMA_1XEVDO:
+            if (!ctx->values_result->evdo)
+                ctx->values_result->evdo = mm_signal_new ();
+            signal_info = ctx->values_result->evdo;
+            break;
+        case QMI_NAS_RADIO_INTERFACE_GSM:
+            if (!ctx->values_result->gsm)
+                ctx->values_result->gsm = mm_signal_new ();
+            signal_info = ctx->values_result->gsm;
+            break;
+        case QMI_NAS_RADIO_INTERFACE_UMTS:
+            if (!ctx->values_result->umts)
+                ctx->values_result->umts = mm_signal_new ();
+            signal_info = ctx->values_result->umts;
+            break;
+        case QMI_NAS_RADIO_INTERFACE_LTE:
+            if (!ctx->values_result->lte)
+                ctx->values_result->lte = mm_signal_new ();
+            signal_info = ctx->values_result->lte;
+            break;
+        default:
+            g_assert_not_reached ();
+        }
+
+        /* RX Channel 0 */
+        if (qmi_message_nas_get_tx_rx_info_output_get_rx_chain_0_info (
+                output,
+                &is_radio_tuned,
+                &power,
+                &ecio,
+                &rscp,
+                &rsrp,
+                &phase,
+                NULL) &&
+            is_radio_tuned) {
+            mm_signal_set_rx0_power (signal_info, (0.1) * ((gdouble)power));
+            if (ctx->tx_rx_iface == QMI_NAS_RADIO_INTERFACE_UMTS)
+                mm_signal_set_rx0_rscp (signal_info, (0.1) * ((gdouble)rscp));
+            if (ctx->tx_rx_iface == QMI_NAS_RADIO_INTERFACE_LTE && phase != 0xFFFFFFFF)
+                mm_signal_set_rx0_phase (signal_info, (0.01) * ((gdouble)phase));
+        }
+
+        /* RX Channel 1 */
+        if (qmi_message_nas_get_tx_rx_info_output_get_rx_chain_1_info (
+                output,
+                &is_radio_tuned,
+                &power,
+                &ecio,
+                &rscp,
+                &rsrp,
+                &phase,
+                NULL)) {
+            mm_signal_set_rx1_power (signal_info, (0.1) * ((gdouble)power));
+            if (ctx->tx_rx_iface == QMI_NAS_RADIO_INTERFACE_UMTS)
+                mm_signal_set_rx1_rscp (signal_info, (0.1) * ((gdouble)rscp));
+            if (ctx->tx_rx_iface == QMI_NAS_RADIO_INTERFACE_LTE && phase != 0xFFFFFFFF)
+                mm_signal_set_rx1_phase (signal_info, (0.01) * ((gdouble)phase));
+        }
+
+        /* TX Channel */
+        if (qmi_message_nas_get_tx_rx_info_output_get_tx_info (
+                output,
+                &is_in_traffic,
+                &power,
+                NULL) &&
+            is_in_traffic) {
+            mm_signal_set_tx_power (signal_info, (0.1) * ((gdouble)power));
+        }
+    }
+
+    /* Retry same step, next interface */
+    ctx->tx_rx_iface++;
+    g_assert (ctx->tx_rx_iface <= QMI_NAS_RADIO_INTERFACE_TD_SCDMA);
+    signal_load_values_context_step (ctx);
+    if (output)
+        qmi_message_nas_get_tx_rx_info_output_unref (output);
+}
 
 static void
 signal_load_values_get_signal_strength_ready (QmiClientNas *client,
@@ -9044,6 +9148,47 @@ signal_load_values_context_step (SignalLoadValuesContext *ctx)
        ctx->step++;
        /* Fall down */
 
+    case SIGNAL_LOAD_VALUES_STEP_TX_RX:
+        /* Get TX/RX info only in NAS >= 1.9 */
+        if (!qmi_client_check_version (QMI_CLIENT (ctx->client), 1, 9)) {
+            ctx->step++;
+            signal_load_values_context_step (ctx);
+            return;
+        }
+
+        switch (ctx->tx_rx_iface) {
+        case QMI_NAS_RADIO_INTERFACE_CDMA_1X:
+        case QMI_NAS_RADIO_INTERFACE_CDMA_1XEVDO:
+        case QMI_NAS_RADIO_INTERFACE_GSM:
+        case QMI_NAS_RADIO_INTERFACE_UMTS:
+        case QMI_NAS_RADIO_INTERFACE_LTE: {
+            QmiMessageNasGetTxRxInfoInput *input;
+
+            input = qmi_message_nas_get_tx_rx_info_input_new ();
+            qmi_message_nas_get_tx_rx_info_input_set_radio_interface (input, ctx->tx_rx_iface, NULL);
+            qmi_client_nas_get_tx_rx_info (ctx->client,
+                                           input,
+                                           10,
+                                           NULL,
+                                           (GAsyncReadyCallback)signal_load_values_get_tx_rx_info_ready,
+                                           ctx);
+            qmi_message_nas_get_tx_rx_info_input_unref (input);
+            return;
+        }
+
+        case QMI_NAS_RADIO_INTERFACE_TD_SCDMA:
+            /* Last one, fall down */
+            ctx->step++;
+            break;
+
+        default:
+            /* Retry same step, next interface */
+            ctx->tx_rx_iface++;
+            g_assert (ctx->tx_rx_iface <= QMI_NAS_RADIO_INTERFACE_TD_SCDMA);
+            signal_load_values_context_step (ctx);
+            return;
+        }
+
     case SIGNAL_LOAD_VALUES_STEP_SIGNAL_LAST:
         /* If any result is set, succeed */
         if (VALUES_RESULT_LOADED (ctx)) {
@@ -9090,6 +9235,7 @@ signal_load_values (MMIfaceModemSignal *self,
                                              user_data,
                                              signal_load_values);
     ctx->step = SIGNAL_LOAD_VALUES_STEP_SIGNAL_FIRST;
+    ctx->tx_rx_iface = QMI_NAS_RADIO_INTERFACE_CDMA_1X;
 
     signal_load_values_context_step (ctx);
 }
