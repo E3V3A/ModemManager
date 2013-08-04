@@ -133,10 +133,90 @@ mmcli_modem_signal_shutdown (void)
 }
 
 static void
+print_single_signal_info (const gchar *name,
+                          MMSignal *signal)
+{
+    if (!signal)
+        return;
+
+    g_print ("  -------------------------\n"
+             "  %s\n",
+             name);
+
+    /* RSSI */
+    if (mm_signal_get_rssi (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("       |          RSSI: '%.2lf' dBm\n",
+                 mm_signal_get_rssi (signal));
+
+    /* ECIO */
+    if (mm_signal_get_ecio (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |        EcIo: '%.2lf' dBm\n",
+                 mm_signal_get_ecio (signal));
+
+    /* SINR */
+    if (mm_signal_get_sinr (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |        SINR: '%.2lf' dBm\n",
+                 mm_signal_get_sinr (signal));
+
+    /* IO */
+    if (mm_signal_get_io (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |          Io: '%.2lf' dB\n",
+                 mm_signal_get_io (signal));
+
+    /* RSRQ */
+    if (mm_signal_get_rsrq (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |        RSRQ: '%.2lf' dB\n",
+                 mm_signal_get_rsrq (signal));
+
+    /* RSRP */
+    if (mm_signal_get_rsrp (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |        RSRP: '%.2lf' dB\n",
+                 mm_signal_get_rsrp (signal));
+
+    /* SNR */
+    if (mm_signal_get_snr (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |         SNR: '%.2lf' dB\n",
+                 mm_signal_get_snr (signal));
+
+    /* RX0 RSCP */
+    if (mm_signal_get_rx0_rscp (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |  RX[0] RSCP: '%.2lf' dBm\n",
+                 mm_signal_get_rx1_rscp (signal));
+
+    /* RX1 RSCP */
+    if (mm_signal_get_rx1_rscp (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |  RX[1] RSCP: '%.2lf' dBm\n",
+                 mm_signal_get_rx1_rscp (signal));
+
+    /* RX0 Phase */
+    if (mm_signal_get_rx0_phase (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         | RX[0] phase: '%.2lf' degrees\n",
+                 mm_signal_get_rx0_phase (signal));
+
+    /* RX1 Phase */
+    if (mm_signal_get_rx1_phase (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         | RX[1] phase: '%.2lf' degrees\n",
+                 mm_signal_get_rx1_phase (signal));
+
+    /* RX0 Power */
+    if (mm_signal_get_rx0_power (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         | RX[0] power: '%.2lf' dBm\n",
+                 mm_signal_get_rx0_power (signal));
+
+    /* RX1 Power */
+    if (mm_signal_get_rx1_power (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         | RX[1] power: '%.2lf' dBm\n",
+                 mm_signal_get_rx1_power (signal));
+
+    /* TX Power */
+    if (mm_signal_get_tx_power (signal) != MM_SIGNAL_UNKNOWN)
+        g_print ("         |    TX power: '%.2lf' dBm\n",
+                 mm_signal_get_tx_power (signal));
+}
+
+static void
 print_signal_info (void)
 {
-    MMSignal *signal;
-
     g_print ("\n"
              "%s\n"
              "  -------------------------\n"
@@ -145,55 +225,19 @@ print_signal_info (void)
              mm_modem_signal_get_rate (ctx->modem_signal));
 
     /* CDMA */
-    signal = mm_modem_signal_peek_cdma (ctx->modem_signal);
-    if (signal)
-        g_print ("  -------------------------\n"
-                 "  CDMA1x | RSSI: '%.2lf' dBm\n"
-                 "         | EcIo: '%.2lf' dBm\n",
-                 mm_signal_get_rssi (signal),
-                 mm_signal_get_ecio (signal));
+    print_single_signal_info ("CDMA1x", mm_modem_signal_peek_cdma (ctx->modem_signal));
 
     /* EVDO */
-    signal = mm_modem_signal_peek_evdo (ctx->modem_signal);
-    if (signal)
-        g_print ("  -------------------------\n"
-                 "  EV-DO  | RSSI: '%.2lf' dBm\n"
-                 "         | EcIo: '%.2lf' dBm\n"
-                 "         | SINR: '%.2lf' dBm\n"
-                 "         |   Io: '%.2lf' dB\n",
-                 mm_signal_get_rssi (signal),
-                 mm_signal_get_ecio (signal),
-                 mm_signal_get_sinr (signal),
-                 mm_signal_get_io (signal));
+    print_single_signal_info (" EV-DO", mm_modem_signal_peek_evdo (ctx->modem_signal));
 
     /* GSM */
-    signal = mm_modem_signal_peek_gsm (ctx->modem_signal);
-    if (signal)
-        g_print ("  -------------------------\n"
-                 "  GSM    | RSSI: '%.2lf' dBm\n",
-                 mm_signal_get_rssi (signal));
+    print_single_signal_info ("   GSM", mm_modem_signal_peek_gsm (ctx->modem_signal));
 
     /* UMTS */
-    signal = mm_modem_signal_peek_umts (ctx->modem_signal);
-    if (signal)
-        g_print ("  -------------------------\n"
-                 "  UMTS   | RSSI: '%.2lf' dBm\n"
-                 "         | EcIo: '%.2lf' dBm\n",
-                 mm_signal_get_rssi (signal),
-                 mm_signal_get_ecio (signal));
+    print_single_signal_info ("  UMTS", mm_modem_signal_peek_umts (ctx->modem_signal));
 
     /* LTE */
-    signal = mm_modem_signal_peek_lte (ctx->modem_signal);
-    if (signal)
-        g_print ("  -------------------------\n"
-                 "  LTE    | RSSI: '%.2lf' dBm\n"
-                 "         | RSRQ: '%.2lf' dB\n"
-                 "         | RSRP: '%.2lf' dBm\n"
-                 "         |  SNR: '%.2lf' dB\n",
-                 mm_signal_get_rssi (signal),
-                 mm_signal_get_rsrq (signal),
-                 mm_signal_get_rsrp (signal),
-                 mm_signal_get_snr (signal));
+    print_single_signal_info ("   LTE", mm_modem_signal_peek_lte (ctx->modem_signal));
 }
 
 static void
