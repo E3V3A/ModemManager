@@ -42,6 +42,7 @@ G_DEFINE_TYPE_EXTENDED (MMManager, mm_manager, MM_GDBUS_TYPE_ORG_FREEDESKTOP_MOD
 enum {
     PROP_0,
     PROP_CONNECTION,
+    PROP_NUM_MODEMS,
     LAST_PROP
 };
 
@@ -546,7 +547,7 @@ mm_manager_shutdown (MMManager *self)
 }
 
 guint32
-mm_manager_num_modems (MMManager *self)
+mm_manager_get_num_modems (MMManager *self)
 {
     GHashTableIter iter;
     gpointer key, value;
@@ -722,6 +723,9 @@ get_property (GObject *object,
     case PROP_CONNECTION:
         g_value_set_object (value, priv->connection);
         break;
+    case PROP_NUM_MODEMS:
+        g_value_set_uint (value, mm_manager_get_num_modems (self));
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -844,4 +848,14 @@ mm_manager_class_init (MMManagerClass *manager_class)
                                                        G_TYPE_DBUS_CONNECTION,
                                                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
     g_object_class_install_property (object_class, PROP_CONNECTION, properties[PROP_CONNECTION]);
+
+    properties[PROP_NUM_MODEMS] =
+        g_param_spec_uint (MM_MANAGER_NUM_MODEMS,
+                           "Number of modems",
+                           "Number of modems currently managed",
+                           0,
+                           G_MAXUINT,
+                           0,
+                           G_PARAM_READABLE);
+    g_object_class_install_property (object_class, PROP_NUM_MODEMS, properties[PROP_NUM_MODEMS]);
 }

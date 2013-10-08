@@ -10,5 +10,5 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=modem.target
 Alias=dbus-org.freedesktop.ModemManager1.service

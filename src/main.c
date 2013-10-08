@@ -37,6 +37,10 @@
 /* Maximum time to wait for all modems to get disabled and removed */
 #define MAX_SHUTDOWN_TIME_SECS 20
 
+/* Maximum time to wait after last modem disappears */
+#define MAX_WAIT_AFTER_LAST_MODEM_SECS 10
+guint after_last_modem_timeout_id;
+
 static GMainLoop *loop;
 static MMManager *manager;
 
@@ -49,6 +53,34 @@ quit_cb (gpointer user_data)
     else
         _exit (0);
     return FALSE;
+}
+
+static gboolean
+after_last_modem_stop_loop_cb (gpointer user_data)
+{
+    after_last_modem_timeout_id = 0;
+	mm_info ("No modems to manage, shutting down...");
+    if (loop)
+        g_idle_add ((GSourceFunc) g_main_loop_quit, loop);
+    return FALSE;
+}
+
+static void
+manager_num_modems_changed (MMManager *_manager)
+{
+    if (mm_manager_get_num_modems (manager) == 0) {
+        g_assert (after_last_modem_timeout_id == 0);
+        after_last_modem_timeout_id = g_timeout_add_seconds (MAX_WAIT_AFTER_LAST_MODEM_SECS,
+                                                             (GSourceFunc)after_last_modem_stop_loop_cb,
+                                                             NULL);
+        return;
+    }
+
+    /* At least one modem, remove timeout if any */
+    if (after_last_modem_timeout_id) {
+        g_source_remove (after_last_modem_timeout_id);
+        after_last_modem_timeout_id = 0;
+    }
 }
 
 static void
@@ -68,6 +100,15 @@ bus_acquired_cb (GDBusConnection *connection,
         g_error_free (error);
         g_main_loop_quit (loop);
         return;
+    }
+
+    /* If exit requested when no modems available, set it up */
+    if (mm_context_get_exit_without_modems ()) {
+        manager_num_clients_changed (manager);
+        g_signal_connect (manager,
+                          "notify::" MM_MANAGER_NUM_CLIENTS,
+                          G_CALLBACK (manager_num_clients_changed),
+                          NULL);
     }
 }
 
@@ -155,7 +196,7 @@ main (int argc, char *argv[])
          * forever: if disabling the modems takes longer than 20s, just
          * shutdown anyway. */
         timer = g_timer_new ();
-        while (mm_manager_num_modems (manager) &&
+        while (mm_manager_get_num_modems (manager) &&
                g_timer_elapsed (timer, NULL) < (gdouble)MAX_SHUTDOWN_TIME_SECS) {
             GMainContext *ctx = g_main_loop_get_context (inner);
 

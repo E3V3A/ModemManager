@@ -23,6 +23,7 @@ static const gchar *log_level;
 static const gchar *log_file;
 static gboolean show_ts;
 static gboolean rel_ts;
+static gboolean exit_without_modems;
 
 static const GOptionEntry entries[] = {
     { "debug", 0, 0, G_OPTION_ARG_NONE, &debug, "Run with extended debugging capabilities", NULL },
@@ -30,6 +31,7 @@ static const GOptionEntry entries[] = {
     { "log-file", 0, 0, G_OPTION_ARG_STRING, &log_file, "Path to log file", NULL },
     { "timestamps", 0, 0, G_OPTION_ARG_NONE, &show_ts, "Show timestamps in log output", NULL },
     { "relative-timestamps", 0, 0, G_OPTION_ARG_NONE, &rel_ts, "Use relative timestamps (from MM start)", NULL },
+    { "exit-without-modems", 0, 0, G_OPTION_ARG_NONE, &exit_without_modems, "Exit if no modems found", NULL },
     { NULL }
 };
 
@@ -61,6 +63,12 @@ gboolean
 mm_context_get_relative_timestamps (void)
 {
     return rel_ts;
+}
+
+gboolean
+mm_context_get_exit_without_modems (void)
+{
+    return exit_without_modems;
 }
 
 void

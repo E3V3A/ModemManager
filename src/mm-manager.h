@@ -31,6 +31,7 @@
 #define MM_MANAGER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), MM_TYPE_MANAGER, MMManagerClass))
 
 #define MM_MANAGER_CONNECTION "connection" /* Construct-only */
+#define MM_MANAGER_N_MODEMS   "n-modems"
 
 typedef struct _MMManagerPrivate MMManagerPrivate;
 
@@ -50,9 +51,8 @@ MMManager       *mm_manager_new         (GDBusConnection *bus,
 
 void             mm_manager_start       (MMManager *manager,
                                          gboolean manual_scan);
-
 void             mm_manager_shutdown    (MMManager *manager);
 
-guint32          mm_manager_num_modems  (MMManager *manager);
+guint32          mm_manager_get_num_modems (MMManager *manager);
 
 #endif /* MM_MANAGER_H */

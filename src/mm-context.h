@@ -26,5 +26,6 @@ const gchar *mm_context_get_log_level           (void);
 const gchar *mm_context_get_log_file            (void);
 gboolean     mm_context_get_timestamps          (void);
 gboolean     mm_context_get_relative_timestamps (void);
+gboolean     mm_context_get_exit_without_modems (void);
 
 #endif /* MM_CONTEXT_H */
