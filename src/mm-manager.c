@@ -45,6 +45,8 @@ enum {
     LAST_PROP
 };
 
+static GParamSpec *properties[PROP_LAST];
+
 struct _MMManagerPrivate {
     /* The connection to the system bus */
     GDBusConnection *connection;
@@ -836,11 +838,10 @@ mm_manager_class_init (MMManagerClass *manager_class)
     object_class->finalize = finalize;
 
     /* Properties */
-    g_object_class_install_property
-        (object_class, PROP_CONNECTION,
-         g_param_spec_object (MM_MANAGER_CONNECTION,
-                              "Connection",
-                              "GDBus connection to the system bus.",
-                              G_TYPE_DBUS_CONNECTION,
-                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+    properties[PROP_CONNECTION] = g_param_spec_object (MM_MANAGER_CONNECTION,
+                                                       "Connection",
+                                                       "GDBus connection to the system bus.",
+                                                       G_TYPE_DBUS_CONNECTION,
+                                                       G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+    g_object_class_install_property (object_class, PROP_CONNECTION, properties[PROP_CONNECTION]);
 }
