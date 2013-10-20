@@ -61,7 +61,8 @@ mm_sim_pantech_new (MMBaseModem *modem,
                                 cancellable,
                                 callback,
                                 user_data,
-                                MM_SIM_MODEM, modem,
+                                MM_SIM_MODEM,     modem,
+                                MM_SIM_READ_EFAD, FALSE,
                                 NULL);
 }
 
@@ -79,8 +80,6 @@ mm_sim_pantech_class_init (MMSimPantechClass *klass)
      * (at least the UMW190) in the head */
     sim_class->load_sim_identifier = NULL;
     sim_class->load_sim_identifier_finish = NULL;
-    sim_class->load_operator_identifier = NULL;
-    sim_class->load_operator_identifier_finish = NULL;
     sim_class->load_operator_name = NULL;
     sim_class->load_operator_name_finish = NULL;
 }
