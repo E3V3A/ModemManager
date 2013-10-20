@@ -1184,13 +1184,23 @@ load_operator_identifier_finish (MMSim *self,
 {
     GError *inner_error = NULL;
     const gchar *imsi;
-    const gchar *result;
     guint mnc_length;
 
-    if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
-        return NULL;
-    result = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res));
+    if (!g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), &inner_error)) {
+        const gchar *result;
 
+        result = g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res));
+        mnc_length = parse_mnc_length (result, &inner_error);
+    }
+
+    /* An error grabbing the MNC length field from EFad is NOT critical */
+    if (inner_error) {
+        g_debug ("Not gathering MNC length from EFad: %s", inner_error->message);
+        g_error_free (inner_error);
+        mnc_length = 0;
+    }
+
+    /* Failing to have an IMSI is critical, though */
     imsi = mm_gdbus_sim_get_imsi (MM_GDBUS_SIM (self));
     if (!imsi) {
         g_set_error (error,
@@ -1200,10 +1210,21 @@ load_operator_identifier_finish (MMSim *self,
         return NULL;
     }
 
-    mnc_length = parse_mnc_length (result, &inner_error);
-    if (inner_error) {
-        g_propagate_error (error, inner_error);
-        return NULL;
+    /* If we didn't get a MNC length from EFad, guess it based on MCC */
+    if (!mnc_length) {
+        gchar mccstr[4];
+        guint mcc;
+
+        memcpy (mccstr, imsi, 3);
+        mccstr[3] = '\0';
+        if (!mm_get_uint_from_str (mccstr, &mcc)) {
+            g_set_error (error,
+                         MM_CORE_ERROR,
+                         MM_CORE_ERROR_FAILED,
+                         "Cannot get correct MCC from IMSI");
+            return NULL;
+        }
+        mnc_length = mm_3gpp_get_mnc_length_for_mcc (mcc);
     }
 
     /* Build Operator ID */
@@ -1219,7 +1240,10 @@ load_operator_identifier (MMSim *self,
 {
     mm_dbg ("loading Operator ID...");
 
-    /* READ BINARY of EFad (Administrative Data) ETSI 51.011 section 10.3.18 */
+    /* READ BINARY of EFad (Administrative Data) ETSI 51.011 section 10.3.18
+     *   NOTE: the MNC length in the EFad file is OPTIONAL; i.e. don't error out
+     *   if it is not available.
+     */
     mm_base_modem_at_command (
         MM_BASE_MODEM (self->priv->modem),
         "+CRSM=176,28589,0,0,4",

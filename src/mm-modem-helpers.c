@@ -2600,3 +2600,32 @@ mm_parse_gsn (const char *gsn,
 
     return success;
 }
+
+/*************************************************************************/
+/* Guess MNC length based on MCC */
+
+guint
+mm_3gpp_get_mnc_length_for_mcc (guint mcc)
+{
+    /*
+     * Info obtained from the mobile-broadband-provider-info database
+     *   https://git.gnome.org/browse/mobile-broadband-provider-info
+     */
+
+    switch (mcc) {
+    case 302: /* Canada */
+    case 310: /* United states */
+    case 311: /* United states */
+    case 338: /* Jamaica */
+    case 342: /* Barbados */
+    case 358: /* St Lucia */
+    case 360: /* St Vincent */
+    case 364: /* Bahamas */
+    case 405: /* India */
+    case 732: /* Colombia */
+        return 3;
+    default:
+        /* For the remaining ones, default to 2 */
+        return 2;
+    }
+}

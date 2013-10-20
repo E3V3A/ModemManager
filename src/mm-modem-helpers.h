@@ -206,6 +206,8 @@ MMBearerIpFamily  mm_3gpp_get_ip_family_from_pdp_type (const gchar *pdp_type);
 
 char *mm_3gpp_parse_iccid (const char *raw_iccid, GError **error);
 
+guint mm_3gpp_get_mnc_length_for_mcc (guint mcc);
+
 /*****************************************************************************/
 /* CDMA specific helpers and utilities */
 /*****************************************************************************/
