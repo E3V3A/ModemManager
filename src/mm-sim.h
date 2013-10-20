@@ -39,6 +39,7 @@ typedef struct _MMSimPrivate MMSimPrivate;
 #define MM_SIM_PATH           "sim-path"
 #define MM_SIM_CONNECTION     "sim-connection"
 #define MM_SIM_MODEM          "sim-modem"
+#define MM_SIM_READ_EFAD      "sim-read-efad"
 
 /* Signals */
 #define MM_SIM_PIN_LOCK_ENABLED "pin-lock-enabled"

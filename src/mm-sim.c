@@ -45,6 +45,7 @@ enum {
     PROP_PATH,
     PROP_CONNECTION,
     PROP_MODEM,
+    PROP_READ_EFAD,
     PROP_LAST
 };
 
@@ -62,6 +63,8 @@ struct _MMSimPrivate {
     MMBaseModem *modem;
     /* The path where the SIM object is exported */
     gchar *path;
+    /* Whether reading EFad is allowed/supported */
+    gboolean read_efad;
 };
 
 static guint signals[SIGNAL_LAST] = { 0 };
@@ -1238,7 +1241,25 @@ load_operator_identifier (MMSim *self,
                           GAsyncReadyCallback callback,
                           gpointer user_data)
 {
+    GSimpleAsyncResult *result;
+
     mm_dbg ("loading Operator ID...");
+    result = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        load_operator_identifier);
+
+    /* If we shouldn't be reading EFad, don't do it and error out the async
+     * operation. We'll catch this error in the _finish() */
+    if (!self->priv->read_efad) {
+        g_simple_async_result_set_error (result,
+                                         MM_CORE_ERROR,
+                                         MM_CORE_ERROR_FAILED,
+                                         "EFad reading disabled");
+        g_simple_async_result_complete_in_idle (result);
+        g_object_unref (result);
+        return;
+    }
 
     /* READ BINARY of EFad (Administrative Data) ETSI 51.011 section 10.3.18
      *   NOTE: the MNC length in the EFad file is OPTIONAL; i.e. don't error out
@@ -1250,10 +1271,7 @@ load_operator_identifier (MMSim *self,
         10,
         FALSE,
         (GAsyncReadyCallback)load_operator_identifier_command_ready,
-        g_simple_async_result_new (G_OBJECT (self),
-                                   callback,
-                                   user_data,
-                                   load_operator_identifier));
+        result);
 }
 
 /*****************************************************************************/
@@ -1687,6 +1705,9 @@ set_property (GObject *object,
                                     G_BINDING_DEFAULT | G_BINDING_SYNC_CREATE);
         }
         break;
+    case PROP_READ_EFAD:
+        self->priv->read_efad = g_value_get_boolean (value);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -1710,6 +1731,9 @@ get_property (GObject *object,
         break;
     case PROP_MODEM:
         g_value_set_object (value, self->priv->modem);
+        break;
+    case PROP_READ_EFAD:
+        g_value_set_boolean (value, self->priv->read_efad);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1813,6 +1837,14 @@ mm_sim_class_init (MMSimClass *klass)
                              MM_TYPE_BASE_MODEM,
                              G_PARAM_READWRITE);
     g_object_class_install_property (object_class, PROP_MODEM, properties[PROP_MODEM]);
+
+    properties[PROP_READ_EFAD] =
+        g_param_spec_boolean (MM_SIM_READ_EFAD,
+                              "Read EFad",
+                              "Whether we can read EFad",
+                              TRUE,
+                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+    g_object_class_install_property (object_class, PROP_READ_EFAD, properties[PROP_READ_EFAD]);
 
     /* Signals */
     signals[SIGNAL_PIN_LOCK_ENABLED] =
