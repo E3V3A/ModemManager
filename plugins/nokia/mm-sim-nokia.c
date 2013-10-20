@@ -61,7 +61,8 @@ mm_sim_nokia_new (MMBaseModem *modem,
                                 cancellable,
                                 callback,
                                 user_data,
-                                MM_SIM_MODEM, modem,
+                                MM_SIM_MODEM,     modem,
+                                MM_SIM_READ_EFAD, FALSE,
                                 NULL);
 }
 
@@ -78,8 +79,6 @@ mm_sim_nokia_class_init (MMSimNokiaClass *klass)
     /* Skip querying most SIM card info, +CRSM not supported by Nokia modems */
     sim_class->load_sim_identifier = NULL;
     sim_class->load_sim_identifier_finish = NULL;
-    sim_class->load_operator_identifier = NULL;
-    sim_class->load_operator_identifier_finish = NULL;
     sim_class->load_operator_name = NULL;
     sim_class->load_operator_name_finish = NULL;
 }
