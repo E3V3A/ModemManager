@@ -596,7 +596,8 @@ mm_sim_qmi_new (MMBaseModem *modem,
                                 cancellable,
                                 callback,
                                 user_data,
-                                MM_SIM_MODEM, modem,
+                                MM_SIM_MODEM,     modem,
+                                MM_SIM_READ_EFAD, FALSE,
                                 NULL);
 }
 
@@ -614,8 +615,6 @@ mm_sim_qmi_class_init (MMSimQmiClass *klass)
     sim_class->load_sim_identifier_finish = load_sim_identifier_finish;
     sim_class->load_imsi = load_imsi;
     sim_class->load_imsi_finish = load_imsi_finish;
-    sim_class->load_operator_identifier = NULL;
-    sim_class->load_operator_identifier_finish = NULL;
     sim_class->load_operator_name = NULL;
     sim_class->load_operator_name_finish = NULL;
     sim_class->send_pin = send_pin;
