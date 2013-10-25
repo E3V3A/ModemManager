@@ -1253,6 +1253,8 @@ write_destination_address (MMSmsPart *part,
     guint byte_offset;
     guint n_digits;
     guint i;
+    DigitMode digit_mode;
+    NumberMode number_mode;
 
     mm_dbg ("    writing destination address...");
 
@@ -1273,17 +1275,31 @@ write_destination_address (MMSmsPart *part,
     byte_offset = 2;
     bit_offset = 0;
 
-    /* Digit mode: DTMF always */
-    mm_dbg ("        digit mode: dtmf");
-    write_bits (&pdu[byte_offset], bit_offset, 1, DIGIT_MODE_DTMF);
+    /* Digit mode: ASCII for International numbers, otherwise DTMF */
+    digit_mode = g_str_has_prefix (number, "+") ? DIGIT_MODE_ASCII : DIGIT_MODE_DTMF;
+    mm_dbg ("        digit mode: %s", digit_mode == DIGIT_MODE_DTMF ? "dtmf" : "ascii");
+    write_bits (&pdu[byte_offset], bit_offset, 1, digit_mode);
     OFFSETS_UPDATE (1);
 
     /* Number mode: DIGIT always */
+    number_mode = NUMBER_MODE_DIGIT;
     mm_dbg ("        number mode: digit");
-    write_bits (&pdu[byte_offset], bit_offset, 1, NUMBER_MODE_DIGIT);
+    write_bits (&pdu[byte_offset], bit_offset, 1, number_mode);
     OFFSETS_UPDATE (1);
 
-    /* Number type and numbering plan only needed in ASCII digit mode, so skip */
+    /* Number type and numbering plan only needed in ASCII digit mode */
+    if (digit_mode == DIGIT_MODE_ASCII) {
+        g_assert (g_str_has_prefix (number, "+"));
+        mm_dbg ("        number type: international");
+        write_bits (&pdu[byte_offset], bit_offset, 3, NUMBER_TYPE_INTERNATIONAL);
+        OFFSETS_UPDATE (3);
+
+        g_assert (number_mode == NUMBER_MODE_DIGIT);
+
+        mm_dbg ("        numbering plan: unknown");
+        write_bits (&pdu[byte_offset], bit_offset, 4, NUMBERING_PLAN_UNKNOWN);
+        OFFSETS_UPDATE (4);
+    }
 
     /* Number of fields */
     if (n_digits > 256) {
@@ -1300,20 +1316,29 @@ write_destination_address (MMSmsPart *part,
 
     /* Actual DTMF encoded number */
     mm_dbg ("        address: %s", number);
-    for (i = 0; i < n_digits; i++) {
-        guint8 dtmf;
+    if (digit_mode == DIGIT_MODE_DTMF) {
+        /* DTMF! Address given with 4-bit characters */
+        for (i = 0; i < n_digits; i++) {
+            guint8 dtmf;
 
-        dtmf = dtmf_from_ascii (number[i]);
-        if (!dtmf) {
-            g_set_error (error,
-                         MM_CORE_ERROR,
-                         MM_CORE_ERROR_UNSUPPORTED,
-                         "Unsupported character in number: '%c'. Cannot convert to DTMF",
-                         number[i]);
+            dtmf = dtmf_from_ascii (number[i]);
+            if (!dtmf) {
+                g_set_error (error,
+                             MM_CORE_ERROR,
+                             MM_CORE_ERROR_UNSUPPORTED,
+                             "Unsupported character in number: '%c'. Cannot convert to DTMF",
+                             number[i]);
             return FALSE;
+            }
+            write_bits (&pdu[byte_offset], bit_offset, 4, dtmf);
+            OFFSETS_UPDATE (4);
         }
-        write_bits (&pdu[byte_offset], bit_offset, 4, dtmf);
-        OFFSETS_UPDATE (4);
+    } else {
+        /* ASCII! Address given with 8-bit characters */
+        for (i = 0; i < n_digits; i++) {
+            write_bits (&pdu[byte_offset], bit_offset, 8, number[i]);
+            OFFSETS_UPDATE (8);
+        }
     }
 
 #undef OFFSETS_UPDATE
