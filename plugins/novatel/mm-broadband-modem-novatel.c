@@ -974,6 +974,276 @@ modem_cdma_activate (MMIfaceModemCdma *self,
 }
 
 /*****************************************************************************/
+/* Manual activation (CDMA interface) */
+
+/* Wait up to 2 minutes */
+#define MAX_IOTA_QUERY_RETRIES 24
+#define MAX_IOTA_QUERY_RETRY_TIME 5
+
+typedef enum {
+    CDMA_ACTIVATION_STEP_FIRST,
+    CDMA_ACTIVATION_STEP_REQUEST_ACTIVATION,
+    CDMA_ACTIVATION_STEP_OTA_UPDATE,
+    CDMA_ACTIVATION_STEP_PRL_UPDATE,
+    CDMA_ACTIVATION_STEP_WAIT_UNTIL_FINISHED,
+    CDMA_ACTIVATION_STEP_LAST
+} CdmaActivationStep;
+
+typedef struct {
+    MMBroadbandModemNovatel *self;
+    GSimpleAsyncResult *result;
+    CdmaActivationStep step;
+    MMCdmaManualActivationProperties *properties;
+    guint wait_timeout_id;
+    guint wait_retries;
+} CdmaActivationContext;
+
+static void
+cdma_activation_context_complete_and_free (CdmaActivationContext *ctx)
+{
+    /* Reset ongoing flag */
+    ctx->self->priv->activation_request_ongoing = FALSE;
+
+    g_assert (ctx->wait_timeout_id == 0);
+
+    g_simple_async_result_complete (ctx->result);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->properties);
+    g_object_unref (ctx->self);
+    g_slice_free (CdmaActivationContext, ctx);
+}
+
+static gboolean
+modem_cdma_activate_manual_finish (MMIfaceModemCdma *self,
+                                    GAsyncResult *res,
+                                    GError **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void cdma_activation_context_step (CdmaActivationContext *ctx);
+
+static gboolean
+activation_context_retry_step (CdmaActivationContext *ctx)
+{
+    ctx->wait_timeout_id = 0;
+    cdma_activation_context_step (ctx);
+    return FALSE;
+}
+
+static void
+iota_query_ready (MMBaseModem *self,
+                  GAsyncResult *res,
+                  CdmaActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Finished? */
+    if (strstr (response, "IOTA Enabled")) {
+        ctx->step++;
+        cdma_activation_context_step (ctx);
+        return;
+    }
+
+    /* Too many retries? */
+    if (ctx->wait_retries == MAX_IOTA_QUERY_RETRIES) {
+        g_simple_async_result_set_error (ctx->result,
+                                         MM_CORE_ERROR,
+                                         MM_CORE_ERROR_FAILED,
+                                         "Too much time waiting to finish the IOTA activation");
+        cdma_activation_context_step (ctx);
+        return;
+    }
+
+    /* Otherwise, schedule retry in some secs */
+    g_assert (ctx->wait_timeout_id == 0);
+    ctx->wait_retries++;
+    ctx->wait_timeout_id = g_timeout_add_seconds (MAX_IOTA_QUERY_RETRY_TIME,
+                                                  (GSourceFunc)activation_context_retry_step,
+                                                  ctx);
+}
+
+static void
+iota_prl_set_ready (MMBaseModem *self,
+                    GAsyncResult *res,
+                    CdmaActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("PRL update successfully requested");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_activation_context_step (ctx);
+}
+
+static void
+iota_ota_set_ready (MMBaseModem *self,
+                    GAsyncResult *res,
+                    CdmaActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("OTA activation successfully requested");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_activation_context_step (ctx);
+}
+
+static void
+nwactivation_set_ready (MMBaseModem *self,
+                        GAsyncResult *res,
+                        CdmaActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("Activation command successfully sent");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_activation_context_step (ctx);
+}
+
+static void
+cdma_activation_context_step (CdmaActivationContext *ctx)
+{
+    switch (ctx->step) {
+    case CDMA_ACTIVATION_STEP_FIRST:
+        ctx->step++;
+        /* Fall down to next step */
+
+    case CDMA_ACTIVATION_STEP_REQUEST_ACTIVATION: {
+        gchar *command;
+
+        mm_info ("Activation step [1/5]: setting up activation details");
+        command = g_strdup_printf ("AT$NWACTIVATION=%s,%s,%s",
+                                   mm_cdma_manual_activation_properties_get_spc (ctx->properties),
+                                   mm_cdma_manual_activation_properties_get_mdn (ctx->properties),
+                                   mm_cdma_manual_activation_properties_get_min (ctx->properties));
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  command,
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)nwactivation_set_ready,
+                                  ctx);
+        g_free (command);
+        return;
+    }
+
+    case CDMA_ACTIVATION_STEP_OTA_UPDATE:
+        mm_info ("Activation step [2/5]: starting OTA activation");
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  "+IOTA=1",
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)iota_ota_set_ready,
+                                  ctx);
+        return;
+
+    case CDMA_ACTIVATION_STEP_PRL_UPDATE:
+        mm_info ("Activation step [3/5]: starting PRL update");
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  "+IOTA=2",
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)iota_prl_set_ready,
+                                  ctx);
+        return;
+
+    case CDMA_ACTIVATION_STEP_WAIT_UNTIL_FINISHED:
+        mm_info ("Activation step [4/5]: checking activation process status");
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  "+IOTA?",
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)iota_query_ready,
+                                  ctx);
+        return;
+
+    case CDMA_ACTIVATION_STEP_LAST:
+        mm_info ("Activation step [5/5]: activation process finished");
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        cdma_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+modem_cdma_activate_manual (MMIfaceModemCdma *self,
+                            MMCdmaManualActivationProperties *properties,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+    GSimpleAsyncResult *simple;
+    CdmaActivationContext *ctx;
+
+    simple = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        modem_cdma_activate_manual);
+
+    /* Fail if we have already an activation ongoing */
+    if (MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing) {
+        g_simple_async_result_set_error (
+            simple,
+            MM_CORE_ERROR,
+            MM_CORE_ERROR_IN_PROGRESS,
+            "An activation operation is already in progress");
+        g_simple_async_result_complete_in_idle (simple);
+        g_object_unref (simple);
+        return;
+    }
+
+    /* Setup context */
+    ctx = g_slice_new0 (CdmaActivationContext);
+    ctx->self = g_object_ref (self);
+    ctx->properties = g_object_ref (properties);
+    ctx->result = simple;
+    ctx->step = CDMA_ACTIVATION_STEP_FIRST;
+
+    mm_dbg ("Launching manual activation...");
+    MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing = TRUE;
+
+    /* And start it */
+    cdma_activation_context_step (ctx);
+}
+
+/*****************************************************************************/
 /* Enable unsolicited events (SMS indications) (Messaging interface) */
 
 static gboolean
@@ -1413,6 +1683,8 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
     iface->get_detailed_registration_state_finish = modem_cdma_get_detailed_registration_state_finish;
     iface->activate = modem_cdma_activate;
     iface->activate_finish = modem_cdma_activate_finish;
+    iface->activate_manual = modem_cdma_activate_manual;
+    iface->activate_manual_finish = modem_cdma_activate_manual_finish;
 }
 
 static void
