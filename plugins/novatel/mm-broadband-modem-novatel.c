@@ -50,6 +50,10 @@ G_DEFINE_TYPE_EXTENDED (MMBroadbandModemNovatel, mm_broadband_modem_novatel, MM_
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_CDMA, iface_modem_cdma_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_TIME, iface_modem_time_init))
 
+struct _MMBroadbandModemNovatelPrivate {
+    gboolean activation_request_ongoing;
+};
+
 /*****************************************************************************/
 /* Load supported modes (Modem interface) */
 
@@ -865,6 +869,111 @@ modem_load_signal_quality (MMIfaceModem *self,
 }
 
 /*****************************************************************************/
+/* Automatic activation (CDMA interface) */
+
+static gboolean
+modem_cdma_activate_finish (MMIfaceModemCdma *self,
+                            GAsyncResult *res,
+                            GError **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void
+qcmipgetp_ready (MMBaseModem *self,
+                 GAsyncResult *res,
+                 GSimpleAsyncResult *simple)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing = FALSE;
+        g_simple_async_result_take_error (simple, error);
+        g_simple_async_result_complete (simple);
+        g_object_unref (simple);
+        return;
+    }
+
+    mm_dbg ("Current profile information retrieved: %s", response);
+
+    /* For now, assume we're done (TODO: check profile contents) */
+    MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing = FALSE;
+    g_simple_async_result_set_op_res_gboolean (simple, TRUE);
+    g_simple_async_result_complete (simple);
+    g_object_unref (simple);
+}
+
+static void
+activate_cdv_ready (MMBaseModem *self,
+                    GAsyncResult *res,
+                    GSimpleAsyncResult *simple)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing = FALSE;
+        g_simple_async_result_take_error (simple, error);
+        g_simple_async_result_complete (simple);
+        g_object_unref (simple);
+        return;
+    }
+
+    mm_dbg ("Automatic activation sequence launched");
+
+    /* Let's query the MIP profile */
+    mm_base_modem_at_command (MM_BASE_MODEM (self),
+                              "$QCMIPGETP",
+                              3,
+                              FALSE,
+                              (GAsyncReadyCallback)qcmipgetp_ready,
+                              simple);
+}
+
+static void
+modem_cdma_activate (MMIfaceModemCdma *self,
+                     const gchar *carrier_code,
+                     GAsyncReadyCallback callback,
+                     gpointer user_data)
+{
+    GSimpleAsyncResult *simple;
+    gchar *number;
+
+    simple = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        modem_cdma_activate);
+
+    /* Fail if we have already an activation ongoing */
+    if (MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing) {
+        g_simple_async_result_set_error (
+            simple,
+            MM_CORE_ERROR,
+            MM_CORE_ERROR_IN_PROGRESS,
+            "An activation operation is already in progress");
+        g_simple_async_result_complete_in_idle (simple);
+        g_object_unref (simple);
+        return;
+    }
+
+    mm_dbg ("Launching automatic activation... (%s)", carrier_code);
+    MM_BROADBAND_MODEM_NOVATEL (self)->priv->activation_request_ongoing = TRUE;
+
+
+    number = g_strdup_printf ("+CDV=%s", carrier_code);
+    mm_base_modem_at_command (MM_BASE_MODEM (self),
+                              number,
+                              3,
+                              FALSE,
+                              (GAsyncReadyCallback)activate_cdv_ready,
+                              simple);
+    g_free (number);
+}
+
+/*****************************************************************************/
 /* Enable unsolicited events (SMS indications) (Messaging interface) */
 
 static gboolean
@@ -1268,6 +1377,9 @@ mm_broadband_modem_novatel_new (const gchar *device,
 static void
 mm_broadband_modem_novatel_init (MMBroadbandModemNovatel *self)
 {
+    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
+                                              MM_TYPE_BROADBAND_MODEM_NOVATEL,
+                                              MMBroadbandModemNovatelPrivate);
 }
 
 static void
@@ -1299,6 +1411,8 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
 {
     iface->get_detailed_registration_state = modem_cdma_get_detailed_registration_state;
     iface->get_detailed_registration_state_finish = modem_cdma_get_detailed_registration_state_finish;
+    iface->activate = modem_cdma_activate;
+    iface->activate_finish = modem_cdma_activate_finish;
 }
 
 static void
@@ -1315,4 +1429,7 @@ iface_modem_time_init (MMIfaceModemTime *iface)
 static void
 mm_broadband_modem_novatel_class_init (MMBroadbandModemNovatelClass *klass)
 {
+    GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+    g_type_class_add_private (object_class, sizeof (MMBroadbandModemNovatelPrivate));
 }
