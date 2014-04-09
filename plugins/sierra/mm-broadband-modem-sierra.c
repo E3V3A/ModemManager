@@ -1612,6 +1612,248 @@ modem_cdma_activate (MMIfaceModemCdma *self,
 }
 
 /*****************************************************************************/
+/* Manual activation (CDMA interface) */
+
+typedef enum {
+    CDMA_MANUAL_ACTIVATION_STEP_FIRST,
+    CDMA_MANUAL_ACTIVATION_STEP_SPC,
+    CDMA_MANUAL_ACTIVATION_STEP_MDN_MIN,
+    CDMA_MANUAL_ACTIVATION_STEP_OTASP,
+    CDMA_MANUAL_ACTIVATION_STEP_CHECK,
+    CDMA_MANUAL_ACTIVATION_STEP_LAST
+} CdmaManualActivationStep;
+
+typedef struct {
+    MMBroadbandModemSierra *self;
+    GSimpleAsyncResult *result;
+    CdmaManualActivationStep step;
+    MMCdmaManualActivationProperties *properties;
+} CdmaManualActivationContext;
+
+static void
+cdma_manual_activation_context_complete_and_free (CdmaManualActivationContext *ctx)
+{
+    /* Reset ongoing flag */
+    ctx->self->priv->activation_request_ongoing = FALSE;
+
+    g_simple_async_result_complete (ctx->result);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->self);
+    g_object_unref (ctx->properties);
+    g_slice_free (CdmaManualActivationContext, ctx);
+}
+
+static gboolean
+modem_cdma_activate_manual_finish (MMIfaceModemCdma *self,
+                                   GAsyncResult *res,
+                                   GError **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void cdma_manual_activation_context_step (CdmaManualActivationContext *ctx);
+
+static void
+manual_namval_query_ready (MMBaseModem *self,
+                           GAsyncResult *res,
+                           CdmaManualActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_manual_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("Activation info retrieved: %s", response);
+
+    /* Keep on */
+    ctx->step++;
+    cdma_manual_activation_context_step (ctx);
+}
+
+static void
+manual_iotastart_ready (MMBaseModem *self,
+                        GAsyncResult *res,
+                        CdmaManualActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_manual_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("OTASP successfully requested");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_manual_activation_context_step (ctx);
+}
+
+static void
+manual_namval_set_ready (MMBaseModem *self,
+                         GAsyncResult *res,
+                         CdmaManualActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_manual_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("MDN/MIN successfully set");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_manual_activation_context_step (ctx);
+}
+
+static void
+manual_namclk_ready (MMBaseModem *self,
+                     GAsyncResult *res,
+                     CdmaManualActivationContext *ctx)
+{
+    GError *error = NULL;
+    const gchar *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, &error);
+    if (!response) {
+        g_simple_async_result_take_error (ctx->result, error);
+        cdma_manual_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    mm_dbg ("Unlock successfully requested");
+
+    /* Keep on */
+    ctx->step++;
+    cdma_manual_activation_context_step (ctx);
+}
+
+static void
+cdma_manual_activation_context_step (CdmaManualActivationContext *ctx)
+{
+    switch (ctx->step) {
+    case CDMA_MANUAL_ACTIVATION_STEP_FIRST:
+        ctx->step++;
+        /* Fall down to next step */
+
+    case CDMA_MANUAL_ACTIVATION_STEP_SPC: {
+        gchar *command;
+
+        mm_info ("Activation step [1/5]: unlocking device");
+        command = g_strdup_printf ("~NAMLCK=%s",
+                                   mm_cdma_manual_activation_properties_get_spc (ctx->properties));
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  command,
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)manual_namclk_ready,
+                                  ctx);
+        g_free (command);
+        return;
+    }
+
+    case CDMA_MANUAL_ACTIVATION_STEP_MDN_MIN: {
+        gchar *command;
+
+        mm_info ("Activation step [2/5]: setting MDN/MIN/SID");
+        command = g_strdup_printf ("~NAMVAL=0,%s,%s,%" G_GUINT16_FORMAT ",65535",
+                                   mm_cdma_manual_activation_properties_get_mdn (ctx->properties),
+                                   mm_cdma_manual_activation_properties_get_min (ctx->properties),
+                                   mm_cdma_manual_activation_properties_get_sid (ctx->properties));
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  command,
+                                  120,
+                                  FALSE,
+                                  (GAsyncReadyCallback)manual_namval_set_ready,
+                                  ctx);
+        g_free (command);
+        return;
+    }
+
+    case CDMA_MANUAL_ACTIVATION_STEP_OTASP:
+        mm_info ("Activation step [3/5]: requesting OTASP");
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  "!IOTASTART",
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)manual_iotastart_ready,
+                                  ctx);
+        return;
+
+    case CDMA_MANUAL_ACTIVATION_STEP_CHECK:
+        mm_info ("Activation step [4/5]: checking activation info");
+        mm_base_modem_at_command (MM_BASE_MODEM (ctx->self),
+                                  "~NAMVAL?0",
+                                  3,
+                                  FALSE,
+                                  (GAsyncReadyCallback)manual_namval_query_ready,
+                                  ctx);
+        return;
+
+    case CDMA_MANUAL_ACTIVATION_STEP_LAST:
+        mm_info ("Activation step [5/5]: activation process finished");
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        cdma_manual_activation_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+modem_cdma_activate_manual (MMIfaceModemCdma *self,
+                            MMCdmaManualActivationProperties *properties,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+    CdmaManualActivationContext *ctx;
+    GSimpleAsyncResult *simple;
+
+    simple = g_simple_async_result_new (G_OBJECT (self),
+                                        callback,
+                                        user_data,
+                                        modem_cdma_activate_manual);
+
+    /* Fail if we have already an activation ongoing */
+    if (MM_BROADBAND_MODEM_SIERRA (self)->priv->activation_request_ongoing) {
+        g_simple_async_result_set_error (
+            simple,
+            MM_CORE_ERROR,
+            MM_CORE_ERROR_IN_PROGRESS,
+            "An activation operation is already in progress");
+        g_simple_async_result_complete_in_idle (simple);
+        g_object_unref (simple);
+        return;
+    }
+
+    /* Setup context */
+    ctx = g_slice_new0 (CdmaManualActivationContext);
+    ctx->self = g_object_ref (self);
+    ctx->result = simple;
+    ctx->step = CDMA_MANUAL_ACTIVATION_STEP_FIRST;
+    ctx->properties = g_object_ref (properties);
+
+    mm_dbg ("Launching manual activation...");
+    MM_BROADBAND_MODEM_SIERRA (self)->priv->activation_request_ongoing = TRUE;
+
+    /* And start it */
+    cdma_manual_activation_context_step (ctx);
+}
+
+/*****************************************************************************/
 /* Load network time (Time interface) */
 
 static gchar *
@@ -1906,6 +2148,8 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
     iface->get_detailed_registration_state_finish = get_detailed_registration_state_finish;
     iface->activate = modem_cdma_activate;
     iface->activate_finish = modem_cdma_activate_finish;
+    iface->activate_manual = modem_cdma_activate_manual;
+    iface->activate_manual_finish = modem_cdma_activate_manual_finish;
 }
 
 static void
