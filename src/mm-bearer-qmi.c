@@ -458,23 +458,23 @@ get_current_settings_ready (QmiClientWds *client,
         GArray *array;
 
         if (qmi_message_wds_get_current_settings_output_get_ip_family (output, &ip_family, &error)) {
-            mm_dbg (" IP Family: %s",
-                    (ip_family == QMI_WDS_IP_FAMILY_IPV4) ? "IPv4" :
-                       (ip_family == QMI_WDS_IP_FAMILY_IPV6) ? "IPv6" : "unknown");
+            mm_dbg (" IP Family: failed (%s); assuming IPv4", error->message);
+            g_clear_error (&error);
+            ip_family = QMI_WDS_IP_FAMILY_IPV4;
+        }
+        mm_dbg (" IP Family: %s",
+                (ip_family == QMI_WDS_IP_FAMILY_IPV4) ? "IPv4" :
+                   (ip_family == QMI_WDS_IP_FAMILY_IPV6) ? "IPv6" : "unknown");
 
-            if (!qmi_message_wds_get_current_settings_output_get_mtu (output, &mtu, &error)) {
-                mm_dbg ("       MTU: failed (%s)", error->message);
-                g_clear_error (&error);
-            }
-
-            if (ip_family == QMI_WDS_IP_FAMILY_IPV4)
-                ctx->ipv4_config = get_ipv4_config (output, mtu);
-            else if (ip_family == QMI_WDS_IP_FAMILY_IPV6)
-                ctx->ipv6_config = get_ipv6_config (output, mtu);
-        } else {
-            mm_dbg (" IP Family: failed (%s)", error->message);
+        if (!qmi_message_wds_get_current_settings_output_get_mtu (output, &mtu, &error)) {
+            mm_dbg ("       MTU: failed (%s)", error->message);
             g_clear_error (&error);
         }
+
+        if (ip_family == QMI_WDS_IP_FAMILY_IPV4)
+            ctx->ipv4_config = get_ipv4_config (output, mtu);
+        else if (ip_family == QMI_WDS_IP_FAMILY_IPV6)
+            ctx->ipv6_config = get_ipv6_config (output, mtu);
 
         /* Domain names */
         if (qmi_message_wds_get_current_settings_output_get_domain_name_list (output, &array, &error)) {
