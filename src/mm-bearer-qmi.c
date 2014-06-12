@@ -454,7 +454,7 @@ get_current_settings_ready (QmiClientWds *client,
         g_error_free (error);
     } else {
         QmiWdsIpFamily ip_family = QMI_WDS_IP_FAMILY_UNSPECIFIED;
-        guint32 mtu;
+        guint32 mtu = 0;
         GArray *array;
 
         if (qmi_message_wds_get_current_settings_output_get_ip_family (output, &ip_family, &error)) {
