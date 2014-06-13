@@ -457,7 +457,7 @@ get_current_settings_ready (QmiClientWds *client,
         guint32 mtu = 0;
         GArray *array;
 
-        if (qmi_message_wds_get_current_settings_output_get_ip_family (output, &ip_family, &error)) {
+        if (!qmi_message_wds_get_current_settings_output_get_ip_family (output, &ip_family, &error)) {
             mm_dbg (" IP Family: failed (%s); assuming IPv4", error->message);
             g_clear_error (&error);
             ip_family = QMI_WDS_IP_FAMILY_IPV4;
