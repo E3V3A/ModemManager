@@ -222,7 +222,9 @@ ModemManager_SOURCES = \
 	mm-port-probe-at.h \
 	mm-port-probe-at.c \
 	mm-plugin.c \
-	mm-plugin.h
+	mm-plugin.h \
+	mm-client-info.h \
+	mm-client-info.c
 
 # Additional dependency rules
 mm-base-bearer.c: mm-daemon-enums-types.h
