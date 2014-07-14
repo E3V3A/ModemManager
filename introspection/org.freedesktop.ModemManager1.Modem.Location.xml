@@ -40,6 +40,9 @@
         <link linkend="gdbus-method-org-freedesktop-ModemManager1-Modem-Location.GetLocation">GetLocation()</link>
         ) to get
         location information.
+
+        If ModemManager is built with limited location user support, location
+        updates signaling (via @signal_location) will be forbidden.
     -->
     <method name="Setup">
       <arg name="sources"         type="u" direction="in" />

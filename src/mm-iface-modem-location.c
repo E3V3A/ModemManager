@@ -941,6 +941,19 @@ handle_setup (MmGdbusModemLocation *skeleton,
         return TRUE;
     }
 
+#ifdef LIMITED_LOCATION_USER
+    /* When the limited location user is requested, no process is allowed to
+     * enable Location property updates; i.e. the property is totally unused.
+     */
+    if (signal_location) {
+        g_dbus_method_invocation_return_error (invocation,
+                                               MM_CORE_ERROR,
+                                               MM_CORE_ERROR_UNSUPPORTED,
+                                               "Cannot enable location signaling when using limited location user");
+        return TRUE;
+    }
+#endif
+
     /* Enable/disable location signaling */
     location_ctx = get_location_context_ref (self);
     if (mm_gdbus_modem_location_get_signals_location (skeleton) != signal_location) {
