@@ -47,29 +47,27 @@ struct _MMAuthProviderClass {
 
     /* Perform authorization checks in this request (async).
      * Returns TRUE if authorized, FALSE if error is set. */
-    void (* authorize) (MMAuthProvider *self,
-                        GDBusMethodInvocation *invocation,
-                        const gchar *authorization,
-                        GCancellable *cancellable,
-                        GAsyncReadyCallback callback,
-                        gpointer user_data);
-    gboolean (* authorize_finish) (MMAuthProvider *self,
-                                   GAsyncResult *res,
-                                   GError **error);
+    void     (* authorize)        (MMAuthProvider         *self,
+                                   GDBusMethodInvocation  *invocation,
+                                   const gchar            *authorization,
+                                   GCancellable           *cancellable,
+                                   GAsyncReadyCallback     callback,
+                                   gpointer                user_data);
+    gboolean (* authorize_finish) (MMAuthProvider         *self,
+                                   GAsyncResult           *res,
+                                   GError                **error);
 };
 
-GType mm_auth_provider_get_type (void);
-
-MMAuthProvider *mm_auth_provider_new (void);
-
-void mm_auth_provider_authorize (MMAuthProvider *self,
-                                 GDBusMethodInvocation *invocation,
-                                 const gchar *authorization,
-                                 GCancellable *cancellable,
-                                 GAsyncReadyCallback callback,
-                                 gpointer user_data);
-gboolean mm_auth_provider_authorize_finish (MMAuthProvider *self,
-                                            GAsyncResult *res,
-                                            GError **error);
+GType           mm_auth_provider_get_type         (void);
+MMAuthProvider *mm_auth_provider_new              (void);
+void            mm_auth_provider_authorize        (MMAuthProvider         *self,
+                                                   GDBusMethodInvocation  *invocation,
+                                                   const gchar            *authorization,
+                                                   GCancellable           *cancellable,
+                                                   GAsyncReadyCallback     callback,
+                                                   gpointer                user_data);
+gboolean        mm_auth_provider_authorize_finish (MMAuthProvider         *self,
+                                                   GAsyncResult           *res,
+                                                   GError                **error);
 
 #endif /* MM_AUTH_PROVIDER_H */

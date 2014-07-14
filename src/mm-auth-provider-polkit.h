@@ -39,8 +39,7 @@ struct _MMAuthProviderPolkitClass {
     MMAuthProviderClass parent;
 };
 
-GType mm_auth_provider_polkit_get_type (void);
-
-MMAuthProvider *mm_auth_provider_polkit_new (void);
+GType           mm_auth_provider_polkit_get_type (void);
+MMAuthProvider *mm_auth_provider_polkit_new      (void);
 
 #endif /* MM_AUTH_PROVIDER_POLKIT_H */

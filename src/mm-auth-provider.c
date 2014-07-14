@@ -29,9 +29,9 @@ mm_auth_provider_new (void)
 /*****************************************************************************/
 
 gboolean
-mm_auth_provider_authorize_finish (MMAuthProvider *self,
-                                   GAsyncResult *res,
-                                   GError **error)
+mm_auth_provider_authorize_finish (MMAuthProvider  *self,
+                                   GAsyncResult    *res,
+                                   GError         **error)
 {
     g_return_val_if_fail (MM_IS_AUTH_PROVIDER (self), FALSE);
 
@@ -39,12 +39,12 @@ mm_auth_provider_authorize_finish (MMAuthProvider *self,
 }
 
 void
-mm_auth_provider_authorize (MMAuthProvider *self,
+mm_auth_provider_authorize (MMAuthProvider        *self,
                             GDBusMethodInvocation *invocation,
-                            const gchar *authorization,
-                            GCancellable *cancellable,
-                            GAsyncReadyCallback callback,
-                            gpointer user_data)
+                            const gchar           *authorization,
+                            GCancellable          *cancellable,
+                            GAsyncReadyCallback    callback,
+                            gpointer               user_data)
 {
     g_return_if_fail (MM_IS_AUTH_PROVIDER (self));
 
@@ -59,21 +59,21 @@ mm_auth_provider_authorize (MMAuthProvider *self,
 /*****************************************************************************/
 
 static gboolean
-authorize_finish (MMAuthProvider *self,
-                  GAsyncResult *res,
-                  GError **error)
+authorize_finish (MMAuthProvider  *self,
+                  GAsyncResult    *res,
+                  GError         **error)
 {
     /* Null auth; everything passes */
     return TRUE;
 }
 
 static void
-authorize (MMAuthProvider *self,
+authorize (MMAuthProvider        *self,
            GDBusMethodInvocation *invocation,
-           const gchar *authorization,
-           GCancellable *cancellable,
-           GAsyncReadyCallback callback,
-           gpointer user_data)
+           const gchar           *authorization,
+           GCancellable          *cancellable,
+           GAsyncReadyCallback    callback,
+           gpointer               user_data)
 {
     GSimpleAsyncResult *result;
 

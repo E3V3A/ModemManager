@@ -41,12 +41,12 @@ mm_auth_provider_polkit_new (void)
 /*****************************************************************************/
 
 typedef struct {
-    MMAuthProvider *self;
-    GCancellable *cancellable;
-    PolkitSubject *subject;
-    gchar *authorization;
+    MMAuthProvider        *self;
+    GCancellable          *cancellable;
+    PolkitSubject         *subject;
+    gchar                 *authorization;
     GDBusMethodInvocation *invocation;
-    GSimpleAsyncResult *result;
+    GSimpleAsyncResult    *result;
 } AuthorizeContext;
 
 static void
@@ -60,20 +60,20 @@ authorize_context_complete_and_free (AuthorizeContext *ctx)
     g_object_unref (ctx->subject);
     g_object_unref (ctx->self);
     g_free (ctx->authorization);
-    g_free (ctx);
+    g_slice_free (AuthorizeContext, ctx);
 }
 
 static gboolean
-authorize_finish (MMAuthProvider *self,
-                     GAsyncResult *res,
-                     GError **error)
+authorize_finish (MMAuthProvider  *self,
+                  GAsyncResult    *res,
+                  GError         **error)
 {
     return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
 }
 
 static void
-check_authorization_ready (PolkitAuthority *authority,
-                           GAsyncResult *res,
+check_authorization_ready (PolkitAuthority  *authority,
+                           GAsyncResult     *res,
                            AuthorizeContext *ctx)
 {
     PolkitAuthorizationResult *pk_result;
@@ -119,12 +119,12 @@ check_authorization_ready (PolkitAuthority *authority,
 }
 
 static void
-authorize (MMAuthProvider *self,
+authorize (MMAuthProvider        *self,
            GDBusMethodInvocation *invocation,
-           const gchar *authorization,
-           GCancellable *cancellable,
-           GAsyncReadyCallback callback,
-           gpointer user_data)
+           const gchar           *authorization,
+           GCancellable          *cancellable,
+           GAsyncReadyCallback    callback,
+           gpointer               user_data)
 {
     MMAuthProviderPolkit *polkit = MM_AUTH_PROVIDER_POLKIT (self);
     AuthorizeContext *ctx;
@@ -143,7 +143,7 @@ authorize (MMAuthProvider *self,
         return;
     }
 
-    ctx = g_new (AuthorizeContext, 1);
+    ctx = g_slice_new0 (AuthorizeContext);
     ctx->self = g_object_ref (self);
     ctx->invocation = g_object_ref (invocation);
     ctx->authorization = g_strdup (authorization);
