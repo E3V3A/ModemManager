@@ -777,8 +777,6 @@ typedef struct {
     MmGdbusModemLocation *skeleton;
     GDBusMethodInvocation *invocation;
     MMIfaceModemLocation *self;
-    guint32 sources;
-    gboolean signal_location;
 } HandleSetupContext;
 
 static void
@@ -787,7 +785,7 @@ handle_setup_context_free (HandleSetupContext *ctx)
     g_object_unref (ctx->skeleton);
     g_object_unref (ctx->invocation);
     g_object_unref (ctx->self);
-    g_free (ctx);
+    g_slice_free (HandleSetupContext, ctx);
 }
 
 static void
@@ -801,85 +799,7 @@ setup_gathering_ready (MMIfaceModemLocation *self,
         g_dbus_method_invocation_take_error (ctx->invocation, error);
     else
         mm_gdbus_modem_location_complete_setup (ctx->skeleton, ctx->invocation);
-
     handle_setup_context_free (ctx);
-}
-
-static void
-handle_setup_auth_ready (MMBaseModem *self,
-                         GAsyncResult *res,
-                         HandleSetupContext *ctx)
-{
-    GError *error = NULL;
-    MMModemState modem_state;
-    MMModemLocationSource not_supported;
-    LocationContext *location_ctx;
-    gchar *str;
-
-    if (!mm_base_modem_authorize_finish (self, res, &error)) {
-        g_dbus_method_invocation_take_error (ctx->invocation, error);
-        handle_setup_context_free (ctx);
-        return;
-    }
-
-    modem_state = MM_MODEM_STATE_UNKNOWN;
-    g_object_get (self,
-                  MM_IFACE_MODEM_STATE, &modem_state,
-                  NULL);
-    if (modem_state < MM_MODEM_STATE_ENABLED) {
-        g_dbus_method_invocation_return_error (ctx->invocation,
-                                               MM_CORE_ERROR,
-                                               MM_CORE_ERROR_WRONG_STATE,
-                                               "Cannot setup location: "
-                                               "device not yet enabled");
-        handle_setup_context_free (ctx);
-        return;
-    }
-
-    /* If any of the location sources being enabled is NOT supported, set error */
-    not_supported = ((mm_gdbus_modem_location_get_capabilities (ctx->skeleton) ^ ctx->sources) & ctx->sources);
-    if (not_supported != MM_MODEM_LOCATION_SOURCE_NONE) {
-        str = mm_modem_location_source_build_string_from_mask (not_supported);
-        g_dbus_method_invocation_return_error (ctx->invocation,
-                                               MM_CORE_ERROR,
-                                               MM_CORE_ERROR_UNSUPPORTED,
-                                               "Cannot enable unsupported location sources: '%s'",
-                                               str);
-        handle_setup_context_free (ctx);
-        g_free (str);
-        return;
-    }
-
-    /* Enable/disable location signaling */
-    location_ctx = get_location_context (ctx->self);
-    if (mm_gdbus_modem_location_get_signals_location (ctx->skeleton) != ctx->signal_location) {
-        mm_dbg ("%s location signaling",
-                ctx->signal_location ? "Enabling" : "Disabling");
-        mm_gdbus_modem_location_set_signals_location (ctx->skeleton,
-                                                      ctx->signal_location);
-        if (ctx->signal_location)
-            mm_gdbus_modem_location_set_location (
-                ctx->skeleton,
-                build_location_dictionary (mm_gdbus_modem_location_get_location (ctx->skeleton),
-                                           location_ctx->location_3gpp,
-                                           location_ctx->location_gps_nmea,
-                                           location_ctx->location_gps_raw,
-                                           location_ctx->location_cdma_bs));
-        else
-            mm_gdbus_modem_location_set_location (
-                ctx->skeleton,
-                build_location_dictionary (NULL, NULL, NULL, NULL, NULL));
-    }
-
-    str = mm_modem_location_source_build_string_from_mask (ctx->sources);
-    mm_dbg ("Setting up location sources: '%s'", str);
-    g_free (str);
-
-    /* Go on to enable or disable the requested sources */
-    setup_gathering (ctx->self,
-                     ctx->sources,
-                     (GAsyncReadyCallback)setup_gathering_ready,
-                     ctx);
 }
 
 static gboolean
@@ -890,97 +810,115 @@ handle_setup (MmGdbusModemLocation *skeleton,
               MMIfaceModemLocation *self)
 {
     HandleSetupContext *ctx;
+    MMModemLocationSource not_supported;
+    LocationContext *location_ctx;
+    gchar *str;
 
-    ctx = g_new (HandleSetupContext, 1);
+    /* If any of the location sources being enabled is NOT supported, set error */
+    not_supported = ((mm_gdbus_modem_location_get_capabilities (skeleton) ^ sources) & sources);
+    if (not_supported != MM_MODEM_LOCATION_SOURCE_NONE) {
+        str = mm_modem_location_source_build_string_from_mask (not_supported);
+        g_dbus_method_invocation_return_error (invocation,
+                                               MM_CORE_ERROR,
+                                               MM_CORE_ERROR_UNSUPPORTED,
+                                               "Cannot enable unsupported location sources: '%s'",
+                                               str);
+        g_free (str);
+        return TRUE;
+    }
+
+    /* Enable/disable location signaling */
+    location_ctx = get_location_context (self);
+    if (mm_gdbus_modem_location_get_signals_location (skeleton) != signal_location) {
+        mm_dbg ("%s location signaling", signal_location ? "Enabling" : "Disabling");
+        mm_gdbus_modem_location_set_signals_location (skeleton, signal_location);
+        if (signal_location)
+            mm_gdbus_modem_location_set_location (
+                skeleton,
+                build_location_dictionary (mm_gdbus_modem_location_get_location (skeleton),
+                                           location_ctx->location_3gpp,
+                                           location_ctx->location_gps_nmea,
+                                           location_ctx->location_gps_raw,
+                                           location_ctx->location_cdma_bs));
+        else
+            mm_gdbus_modem_location_set_location (
+                skeleton,
+                build_location_dictionary (NULL, NULL, NULL, NULL, NULL));
+    }
+
+    str = mm_modem_location_source_build_string_from_mask (sources);
+    mm_dbg ("Setting up location sources: '%s'", str);
+    g_free (str);
+
+    /* Go on to enable or disable the requested sources */
+    ctx = g_slice_new0 (HandleSetupContext);
     ctx->skeleton = g_object_ref (skeleton);
     ctx->invocation = g_object_ref (invocation);
     ctx->self = g_object_ref (self);
-    ctx->sources = sources;
-    ctx->signal_location = signal_location;
+    setup_gathering (self,
+                     sources,
+                     (GAsyncReadyCallback)setup_gathering_ready,
+                     ctx);
 
-    mm_base_modem_authorize (MM_BASE_MODEM (self),
-                             invocation,
-                             MM_AUTHORIZATION_DEVICE_CONTROL,
-                             (GAsyncReadyCallback)handle_setup_auth_ready,
-                             ctx);
     return TRUE;
 }
 
 /*****************************************************************************/
-
-typedef struct {
-    MmGdbusModemLocation *skeleton;
-    GDBusMethodInvocation *invocation;
-    MMIfaceModemLocation *self;
-} HandleGetLocationContext;
-
-static void
-handle_get_location_context_free (HandleGetLocationContext *ctx)
-{
-    g_object_unref (ctx->skeleton);
-    g_object_unref (ctx->invocation);
-    g_object_unref (ctx->self);
-    g_free (ctx);
-}
-
-static void
-handle_get_location_auth_ready (MMBaseModem *self,
-                                GAsyncResult *res,
-                                HandleGetLocationContext *ctx)
-{
-    MMModemState modem_state;
-    LocationContext *location_ctx;
-    GError *error = NULL;
-
-    if (!mm_base_modem_authorize_finish (self, res, &error)) {
-        g_dbus_method_invocation_take_error (ctx->invocation, error);
-        handle_get_location_context_free (ctx);
-        return;
-    }
-
-    modem_state = MM_MODEM_STATE_UNKNOWN;
-    g_object_get (self,
-                  MM_IFACE_MODEM_STATE, &modem_state,
-                  NULL);
-    if (modem_state < MM_MODEM_STATE_ENABLED) {
-        g_dbus_method_invocation_return_error (ctx->invocation,
-                                               MM_CORE_ERROR,
-                                               MM_CORE_ERROR_WRONG_STATE,
-                                               "Cannot get location: "
-                                               "device not yet enabled");
-        handle_get_location_context_free (ctx);
-        return;
-    }
-
-    location_ctx = get_location_context (ctx->self);
-    mm_gdbus_modem_location_complete_get_location (
-        ctx->skeleton,
-        ctx->invocation,
-        build_location_dictionary (NULL,
-                                   location_ctx->location_3gpp,
-                                   location_ctx->location_gps_nmea,
-                                   location_ctx->location_gps_raw,
-                                   location_ctx->location_cdma_bs));
-    handle_get_location_context_free (ctx);
-}
 
 static gboolean
 handle_get_location (MmGdbusModemLocation *skeleton,
                      GDBusMethodInvocation *invocation,
                      MMIfaceModemLocation *self)
 {
-    HandleGetLocationContext *ctx;
+    LocationContext *ctx;
 
-    ctx = g_new (HandleGetLocationContext, 1);
-    ctx->skeleton = g_object_ref (skeleton);
-    ctx->invocation = g_object_ref (invocation);
-    ctx->self = g_object_ref (self);
+    ctx = get_location_context (self);
+    mm_gdbus_modem_location_complete_get_location (
+        skeleton,
+        invocation,
+        build_location_dictionary (NULL,
+                                   ctx->location_3gpp,
+                                   ctx->location_gps_nmea,
+                                   ctx->location_gps_raw,
+                                   ctx->location_cdma_bs));
+    return TRUE;
+}
 
-    mm_base_modem_authorize (MM_BASE_MODEM (self),
-                             invocation,
-                             MM_AUTHORIZATION_LOCATION,
-                             (GAsyncReadyCallback)handle_get_location_auth_ready,
-                             ctx);
+/*****************************************************************************/
+
+static gboolean
+authorize_method_cb (GDBusInterfaceSkeleton *interface,
+                     GDBusMethodInvocation  *invocation,
+                     MMIfaceModemLocation   *self)
+{
+    MMModemState modem_state;
+    GError *error = NULL;
+
+    /* Note: this method is executed in an independent thread, and therefore
+     * it is safe to do blocking I/O */
+    if (!mm_base_modem_authorize_sync (MM_BASE_MODEM (self),
+                                       invocation,
+                                       MM_AUTHORIZATION_LOCATION,
+                                       &error)) {
+        mm_dbg ("location method not authorized: %s", error->message);
+        g_dbus_method_invocation_take_error (invocation, error);
+        return FALSE;
+    }
+
+    /* Check if the modem is enabled */
+    modem_state = MM_MODEM_STATE_UNKNOWN;
+    g_object_get (self,
+                  MM_IFACE_MODEM_STATE, &modem_state,
+                  NULL);
+    if (modem_state < MM_MODEM_STATE_ENABLED) {
+        g_dbus_method_invocation_return_error (invocation,
+                                               MM_CORE_ERROR,
+                                               MM_CORE_ERROR_WRONG_STATE,
+                                               "Cannot get location: "
+                                               "device not yet enabled");
+        return FALSE;
+    }
+
     return TRUE;
 }
 
@@ -1391,6 +1329,12 @@ mm_iface_modem_location_initialize (MMIfaceModemLocation *self,
     if (!skeleton) {
         skeleton = mm_gdbus_modem_location_skeleton_new ();
 
+        /* Setup authorization checks */
+        g_signal_connect (skeleton,
+                          "g-authorize-method",
+                          G_CALLBACK (authorize_method_cb),
+                          self);
+
         /* Set all initial property defaults */
         mm_gdbus_modem_location_set_capabilities (skeleton, MM_MODEM_LOCATION_SOURCE_NONE);
         mm_gdbus_modem_location_set_enabled (skeleton, MM_MODEM_LOCATION_SOURCE_NONE);
@@ -1422,11 +1366,22 @@ mm_iface_modem_location_initialize (MMIfaceModemLocation *self,
 void
 mm_iface_modem_location_shutdown (MMIfaceModemLocation *self)
 {
+    MmGdbusModemLocation *skeleton = NULL;
+
     /* Unexport DBus interface and remove the skeleton */
     mm_gdbus_object_skeleton_set_modem_location (MM_GDBUS_OBJECT_SKELETON (self), NULL);
-    g_object_set (self,
-                  MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, NULL,
+
+    g_object_get (self,
+                  MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
+    if (skeleton) {
+        /* Just in case, make sure we explicitly disconnect the signal handler */
+        g_signal_handlers_disconnect_by_func (skeleton, authorize_method_cb, self);
+        g_object_unref (skeleton);
+        g_object_set (self,
+                      MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, NULL,
+                      NULL);
+    }
 }
 
 /*****************************************************************************/
