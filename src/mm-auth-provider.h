@@ -56,6 +56,14 @@ struct _MMAuthProviderClass {
     gboolean (* authorize_finish) (MMAuthProvider         *self,
                                    GAsyncResult           *res,
                                    GError                **error);
+
+    /* Perform authorization checks in this request (sync).
+     * Returns TRUE if authorized, FALSE if error is set. */
+    gboolean (* authorize_sync)   (MMAuthProvider         *self,
+                                   GDBusMethodInvocation  *invocation,
+                                   const gchar            *authorization,
+                                   GCancellable           *cancellable,
+                                   GError                **error);
 };
 
 GType           mm_auth_provider_get_type         (void);
@@ -68,6 +76,11 @@ void            mm_auth_provider_authorize        (MMAuthProvider         *self,
                                                    gpointer                user_data);
 gboolean        mm_auth_provider_authorize_finish (MMAuthProvider         *self,
                                                    GAsyncResult           *res,
+                                                   GError                **error);
+gboolean        mm_auth_provider_authorize_sync   (MMAuthProvider         *self,
+                                                   GDBusMethodInvocation  *invocation,
+                                                   const gchar            *authorization,
+                                                   GCancellable           *cancellable,
                                                    GError                **error);
 
 #endif /* MM_AUTH_PROVIDER_H */

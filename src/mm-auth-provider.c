@@ -58,6 +58,24 @@ mm_auth_provider_authorize (MMAuthProvider        *self,
 
 /*****************************************************************************/
 
+gboolean
+mm_auth_provider_authorize_sync (MMAuthProvider         *self,
+                                 GDBusMethodInvocation  *invocation,
+                                 const gchar            *authorization,
+                                 GCancellable           *cancellable,
+                                 GError                **error)
+{
+    g_return_val_if_fail (MM_IS_AUTH_PROVIDER (self), FALSE);
+
+    return MM_AUTH_PROVIDER_GET_CLASS (self)->authorize_sync (self,
+                                                              invocation,
+                                                              authorization,
+                                                              cancellable,
+                                                              error);
+}
+
+/*****************************************************************************/
+
 static gboolean
 authorize_finish (MMAuthProvider  *self,
                   GAsyncResult    *res,
@@ -88,6 +106,19 @@ authorize (MMAuthProvider        *self,
 
 /*****************************************************************************/
 
+static gboolean
+authorize_sync (MMAuthProvider         *self,
+                GDBusMethodInvocation  *invocation,
+                const gchar            *authorization,
+                GCancellable           *cancellable,
+                GError                **error)
+{
+    /* Null auth; everything passes */
+    return TRUE;
+}
+
+/*****************************************************************************/
+
 static void
 mm_auth_provider_init (MMAuthProvider *self)
 {
@@ -97,6 +128,7 @@ static void
 mm_auth_provider_class_init (MMAuthProviderClass *class)
 {
     /* Virtual methods */
-    class->authorize = authorize;
+    class->authorize        = authorize;
     class->authorize_finish = authorize_finish;
+    class->authorize_sync   = authorize_sync;
 }
