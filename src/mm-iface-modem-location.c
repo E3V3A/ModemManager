@@ -317,6 +317,7 @@ notify_gps_location_update (MMIfaceModemLocation *self,
                             MMLocationGpsRaw *location_gps_raw)
 {
     const gchar *dbus_path;
+    MMModemLocationSource sources;
 
     dbus_path = g_dbus_object_get_object_path (G_DBUS_OBJECT (self));
     mm_info ("Modem %s: GPS location updated",
@@ -332,6 +333,14 @@ notify_gps_location_update (MMIfaceModemLocation *self,
                                        location_gps_nmea,
                                        location_gps_raw,
                                        NULL));
+
+    /* Location updated signal always emitted */
+    sources = MM_MODEM_LOCATION_SOURCE_NONE;
+    if (location_gps_nmea)
+        sources |= MM_MODEM_LOCATION_SOURCE_GPS_NMEA;
+    if (location_gps_raw)
+        sources |= MM_MODEM_LOCATION_SOURCE_GPS_RAW;
+    mm_gdbus_modem_location_emit_location_updated (skeleton, sources);
 }
 
 void
@@ -408,6 +417,9 @@ notify_3gpp_location_update (MMIfaceModemLocation *self,
                                        location_3gpp,
                                        NULL, NULL,
                                        NULL));
+
+    /* Location updated signal always emitted */
+    mm_gdbus_modem_location_emit_location_updated (skeleton, MM_MODEM_LOCATION_SOURCE_3GPP_LAC_CI);
 }
 
 void
@@ -529,6 +541,9 @@ notify_cdma_bs_location_update (MMIfaceModemLocation *self,
                                        NULL,
                                        NULL, NULL,
                                        location_cdma_bs));
+
+    /* Location updated signal always emitted */
+    mm_gdbus_modem_location_emit_location_updated (skeleton, MM_MODEM_LOCATION_SOURCE_CDMA_BS);
 }
 
 void

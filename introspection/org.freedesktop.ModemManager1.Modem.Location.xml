@@ -65,6 +65,21 @@
     </method>
 
     <!--
+        LocationUpdated:
+        @sources: bitmask of the <link linkend="MMModemLocationSource">MMModemLocationSource</link> values that were updated.
+
+        This signal is emitted whenever new location information is available
+        to be retrieved (e.g. via GetLocation()).
+
+        This signal is emitted even when location signaling is disabled in the
+        interface, as this is just a notification that new location can be
+        retrieved, without giving the location information explicitly.
+    -->
+    <signal name="LocationUpdated">
+      <arg name="sources" type="u" />
+    </signal>
+
+    <!--
         Capabilities:
 
         Bitmask of <link linkend="MMModemLocationSource">MMModemLocationSource</link>
