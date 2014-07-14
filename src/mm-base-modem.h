@@ -193,6 +193,10 @@ void     mm_base_modem_authorize        (MMBaseModem *self,
 gboolean mm_base_modem_authorize_finish (MMBaseModem *self,
                                          GAsyncResult *res,
                                          GError **error);
+gboolean mm_base_modem_authorize_sync   (MMBaseModem *self,
+                                         GDBusMethodInvocation *invocation,
+                                         const gchar *authorization,
+                                         GError **error);
 
 void     mm_base_modem_initialize        (MMBaseModem *self,
                                           GAsyncReadyCallback callback,

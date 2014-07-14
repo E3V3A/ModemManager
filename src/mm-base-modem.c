@@ -1298,6 +1298,23 @@ mm_base_modem_authorize (MMBaseModem *self,
                                 result);
 }
 
+gboolean
+mm_base_modem_authorize_sync (MMBaseModem *self,
+                              GDBusMethodInvocation *invocation,
+                              const gchar *authorization,
+                              GError **error)
+{
+    /* When running in the session bus for tests, default to always allow */
+    if (mm_context_get_test_session ())
+        return TRUE;
+
+    return mm_auth_provider_authorize_sync (self->priv->authp,
+                                            invocation,
+                                            authorization,
+                                            self->priv->authp_cancellable,
+                                            error);
+}
+
 /*****************************************************************************/
 
 const gchar *
