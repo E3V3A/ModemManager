@@ -21,6 +21,7 @@
 #include "mm-iface-modem.h"
 #include "mm-iface-modem-location.h"
 #include "mm-log.h"
+#include "mm-client-info.h"
 
 #define MM_LOCATION_GPS_REFRESH_TIME_SECS 30
 
@@ -50,6 +51,10 @@ typedef struct {
     MMLocationGpsRaw *location_gps_raw;
     /* CDMA BS location */
     MMLocationCdmaBs *location_cdma_bs;
+
+    /* Client tracking */
+    GMutex clients_mutex;
+    GHashTable *clients;
 } LocationContext;
 
 static void
@@ -64,6 +69,8 @@ location_context_unref (LocationContext *ctx)
             g_object_unref (ctx->location_gps_raw);
         if (ctx->location_cdma_bs)
             g_object_unref (ctx->location_cdma_bs);
+        g_mutex_clear (&ctx->clients_mutex);
+        g_hash_table_unref (ctx->clients);
         g_slice_free (LocationContext, ctx);
     }
 }
@@ -108,6 +115,10 @@ get_location_context_ref (MMIfaceModemLocation *self)
         /* Create context and keep it as object data */
         ctx = g_slice_new0 (LocationContext);
         ctx->ref_count = 2; /* one as qdata, one to return */
+        ctx->clients = g_hash_table_new_full (g_str_hash,
+                                              g_str_equal,
+                                              g_free,
+                                              g_object_unref);
         g_object_set_qdata_full (
             G_OBJECT (self),
             location_context_quark,
@@ -116,6 +127,51 @@ get_location_context_ref (MMIfaceModemLocation *self)
     }
 
     return ctx;
+}
+
+/*****************************************************************************/
+
+static void
+peer_vanished_cb (MMClientInfo *client_info,
+                  MMIfaceModemLocation *self)
+{
+    LocationContext *ctx;
+
+    mm_dbg ("(location) client at %s (uid %u) vanished from the bus",
+            mm_client_info_get_bus_name (client_info),
+            mm_client_info_get_user_id (client_info));
+
+    ctx = get_location_context_ref (self);
+
+    g_mutex_lock (&ctx->clients_mutex);
+    g_signal_handlers_disconnect_by_func (client_info, peer_vanished_cb, self);
+    g_hash_table_remove (ctx->clients, mm_client_info_get_bus_name (client_info));
+    g_mutex_unlock (&ctx->clients_mutex);
+
+    location_context_unref (ctx);
+}
+
+static void
+track_peer_info (MMIfaceModemLocation *self,
+                 const gchar *bus_name,
+                 MMClientInfo *client_info)
+{
+    LocationContext *ctx;
+
+    mm_dbg ("(location) tracking client at %s (uid %u)",
+            bus_name,
+            mm_client_info_get_user_id (client_info));
+
+    ctx = get_location_context_ref (self);
+
+    /* Setup signal handler to detect when the peer vanishes from the bus */
+    g_signal_connect (client_info, "peer-vanished", G_CALLBACK (peer_vanished_cb), self);
+
+    g_mutex_lock (&ctx->clients_mutex);
+    g_hash_table_insert (ctx->clients, g_strdup (bus_name), g_object_ref (client_info));
+    g_mutex_unlock (&ctx->clients_mutex);
+
+    location_context_unref (ctx);
 }
 
 /*****************************************************************************/
@@ -923,13 +979,46 @@ authorize_method_cb (GDBusInterfaceSkeleton *interface,
 {
     MMModemState modem_state;
     GError *error = NULL;
+    MMClientInfo *client_info;
+    LocationContext *ctx;
 
     /* Note: this method is executed in an independent thread, and therefore
      * it is safe to do blocking I/O */
-    if (!mm_base_modem_authorize_sync (MM_BASE_MODEM (self),
-                                       invocation,
-                                       MM_AUTHORIZATION_LOCATION,
-                                       &error)) {
+
+    ctx = get_location_context_ref (self);
+    g_mutex_lock (&ctx->clients_mutex);
+    client_info = (MMClientInfo *) g_hash_table_lookup (ctx->clients,
+                                                        g_dbus_method_invocation_get_sender (invocation));
+    g_mutex_unlock (&ctx->clients_mutex);
+    location_context_unref (ctx);
+
+    if (!client_info) {
+        client_info = mm_client_info_new_sync (g_dbus_method_invocation_get_sender (invocation),
+                                               g_dbus_method_invocation_get_connection (invocation),
+                                               NULL,
+                                               &error);
+        if (!client_info) {
+            mm_dbg ("location method not authorized: couldn't gather client info: %s", error->message);
+            g_dbus_method_invocation_take_error (invocation, error);
+            return FALSE;
+        }
+
+        /* Keep client info */
+        track_peer_info (self,
+                         g_dbus_method_invocation_get_sender (invocation),
+                         client_info);
+    }
+
+    /* For now, if we see that the peer is running as root, allow right away */
+    if (mm_client_info_get_user_id (client_info) == 0)
+        mm_dbg ("location method authorized (uid)");
+    /* Polkit-based auth, when needed */
+    else if (mm_base_modem_authorize_sync (MM_BASE_MODEM (self),
+                                           invocation,
+                                           MM_AUTHORIZATION_LOCATION,
+                                           &error))
+        mm_dbg ("location method authorized (polkit)");
+    else {
         mm_dbg ("location method not authorized: %s", error->message);
         g_dbus_method_invocation_take_error (invocation, error);
         return FALSE;
@@ -941,6 +1030,7 @@ authorize_method_cb (GDBusInterfaceSkeleton *interface,
                   MM_IFACE_MODEM_STATE, &modem_state,
                   NULL);
     if (modem_state < MM_MODEM_STATE_ENABLED) {
+        mm_dbg ("location method not authorized: modem not yet enabled");
         g_dbus_method_invocation_return_error (invocation,
                                                MM_CORE_ERROR,
                                                MM_CORE_ERROR_WRONG_STATE,
