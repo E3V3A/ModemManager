@@ -14,6 +14,12 @@
  * Copyright (C) 2012 Lanedo GmbH <aleksander@lanedo.com>
  */
 
+#include "config.h"
+
+#include <sys/types.h>
+#include <pwd.h>
+#include <errno.h>
+
 #include <ModemManager.h>
 #define _LIBMM_INSIDE_MM
 #include <libmm-glib.h>
@@ -55,6 +61,9 @@ typedef struct {
     /* Client tracking */
     GMutex clients_mutex;
     GHashTable *clients;
+
+    /* Limited location user id */
+    gint limited_location_uid;
 } LocationContext;
 
 static void
@@ -119,6 +128,27 @@ get_location_context_ref (MMIfaceModemLocation *self)
                                               g_str_equal,
                                               g_free,
                                               g_object_unref);
+        ctx->limited_location_uid = -1;
+#ifdef LIMITED_LOCATION_USER
+        {
+            const struct passwd *p;
+
+            /* No multiple threading here, so just use the non-reentrant method */
+            errno = 0;
+            p = getpwnam (LIMITED_LOCATION_USER);
+            if (!p) {
+                if (errno)
+                    g_warning ("couldn't load uid of the limited location user: %s", g_strerror (errno));
+                else
+                    g_warning ("couldn't find the limited location user in the system");
+            } else {
+                /* Store limited location user's uid */
+                ctx->limited_location_uid = (gint) p->pw_uid;
+                g_debug ("limited location user '%s': uid %d", LIMITED_LOCATION_USER, ctx->limited_location_uid);
+            }
+        }
+#endif
+
         g_object_set_qdata_full (
             G_OBJECT (self),
             location_context_quark,
@@ -1009,20 +1039,41 @@ authorize_method_cb (GDBusInterfaceSkeleton *interface,
                          client_info);
     }
 
+    ctx = get_location_context_ref (self);
+
     /* For now, if we see that the peer is running as root, allow right away */
-    if (mm_client_info_get_user_id (client_info) == 0)
+    if (mm_client_info_get_user_id (client_info) == 0) {
         mm_dbg ("location method authorized (uid)");
-    /* Polkit-based auth, when needed */
-    else if (mm_base_modem_authorize_sync (MM_BASE_MODEM (self),
-                                           invocation,
-                                           MM_AUTHORIZATION_LOCATION,
-                                           &error))
-        mm_dbg ("location method authorized (polkit)");
-    else {
-        mm_dbg ("location method not authorized: %s", error->message);
-        g_dbus_method_invocation_take_error (invocation, error);
-        return FALSE;
+        goto authorized;
     }
+
+    /* If we have a limited location user setup, check it now. Note; we're reading the uid
+     * from the context in a different thread; we'll use the clients info mutex to sync,
+     * even if it's just reading (no other thread will rewrite this value) */
+    g_mutex_lock (&ctx->clients_mutex);
+    if (ctx->limited_location_uid > 0 && mm_client_info_get_user_id (client_info) == ctx->limited_location_uid) {
+        mm_dbg ("location method authorized (limited location user)");
+        g_mutex_unlock (&ctx->clients_mutex);
+        goto authorized;
+    }
+    g_mutex_unlock (&ctx->clients_mutex);
+
+    /* Polkit-based auth, when needed */
+    if (mm_base_modem_authorize_sync (MM_BASE_MODEM (self),
+                                      invocation,
+                                      MM_AUTHORIZATION_LOCATION,
+                                      &error)) {
+        mm_dbg ("location method authorized (polkit)");
+        goto authorized;
+    }
+
+    location_context_unref (ctx);
+    mm_dbg ("location method not authorized: %s", error->message);
+    g_dbus_method_invocation_take_error (invocation, error);
+    return FALSE;
+
+authorized:
+    location_context_unref (ctx);
 
     /* Check if the modem is enabled */
     modem_state = MM_MODEM_STATE_UNKNOWN;

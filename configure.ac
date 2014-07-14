@@ -194,6 +194,15 @@ fi
 
 AM_CONDITIONAL(WITH_POLKIT, [test "x$with_polkit" != "xnone" ])
 
+# Limited location users (root plus the uid provided here)
+AC_ARG_WITH(limited-location-user, AS_HELP_STRING([--with-limited-location-user=UID], [uid of the only non-root location user]))
+if test -n "$with_limited_location_user" ; then
+    AC_DEFINE_UNQUOTED(LIMITED_LOCATION_USER, "${with_limited_location_user}", [Define if you have limited location user support])
+else
+    with_limited_location_user=none
+fi
+AM_CONDITIONAL(WITH_LIMITED_LOCATION_USER, [test "x$with_limited_location_user" != "xnone" ])
+
 dnl
 dnl MBIM support (enabled by default)
 dnl
@@ -318,19 +327,23 @@ echo "
     ModemManager $VERSION
     ==============================================
 
-    compiler:                ${CC}
-    cflags:                  ${CFLAGS}
-    Maintainer mode:         ${USE_MAINTAINER_MODE}
+    compiler:               ${CC}
+    cflags:                 ${CFLAGS}
+    Maintainer mode:        ${USE_MAINTAINER_MODE}
 
-    D-Bus system directory:  ${DBUS_SYS_DIR}
-    udev base directory:     ${UDEV_BASE_DIR}
-    systemd unit directory:  ${with_systemdsystemunitdir}
+    D-Bus system directory: ${DBUS_SYS_DIR}
+    udev base directory:    ${UDEV_BASE_DIR}
+    systemd unit directory: ${with_systemdsystemunitdir}
 
-    PolicyKit support:       ${with_polkit}
-    GObject Introspection:   ${found_introspection}
-    Vala Bindings:           ${enable_vala}
-    Documentation:           ${enable_gtk_doc}
-    MBIM support:            ${with_mbim}
-    QMI support:             ${with_qmi}
-    Newest QMI commands:     ${with_newest_qmi_commands}
+    PolicyKit support:      ${with_polkit}
+    Limited location user:  ${with_limited_location_user}
+
+    GObject Introspection:  ${found_introspection}
+    Vala Bindings:          ${enable_vala}
+    Documentation:          ${enable_gtk_doc}
+
+    MBIM support:           ${with_mbim}
+
+    QMI support:            ${with_qmi}
+    Newest QMI commands:    ${with_newest_qmi_commands}
 "
