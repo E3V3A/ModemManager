@@ -39,6 +39,8 @@ mm_iface_modem_location_bind_simple_status (MMIfaceModemLocation *self,
 /*****************************************************************************/
 
 typedef struct {
+    volatile gint ref_count;
+
     /* 3GPP location */
     MMLocation3gpp *location_3gpp;
     /* GPS location */
@@ -51,17 +53,28 @@ typedef struct {
 } LocationContext;
 
 static void
-location_context_free (LocationContext *ctx)
+location_context_unref (LocationContext *ctx)
 {
-    if (ctx->location_3gpp)
-        g_object_unref (ctx->location_3gpp);
-    if (ctx->location_gps_nmea)
-        g_object_unref (ctx->location_gps_nmea);
-    if (ctx->location_gps_raw)
-        g_object_unref (ctx->location_gps_raw);
-    if (ctx->location_cdma_bs)
-        g_object_unref (ctx->location_cdma_bs);
-    g_free (ctx);
+    if (g_atomic_int_dec_and_test (&ctx->ref_count)) {
+        if (ctx->location_3gpp)
+            g_object_unref (ctx->location_3gpp);
+        if (ctx->location_gps_nmea)
+            g_object_unref (ctx->location_gps_nmea);
+        if (ctx->location_gps_raw)
+            g_object_unref (ctx->location_gps_raw);
+        if (ctx->location_cdma_bs)
+            g_object_unref (ctx->location_cdma_bs);
+        g_slice_free (LocationContext, ctx);
+    }
+}
+
+static LocationContext *
+location_context_ref (LocationContext *ctx)
+{
+    if (!ctx)
+        return NULL;
+    g_atomic_int_inc (&ctx->ref_count);
+    return ctx;
 }
 
 static void
@@ -78,7 +91,7 @@ clear_location_context (MMIfaceModemLocation *self)
 }
 
 static LocationContext *
-get_location_context (MMIfaceModemLocation *self)
+get_location_context_ref (MMIfaceModemLocation *self)
 {
     LocationContext *ctx;
 
@@ -86,16 +99,20 @@ get_location_context (MMIfaceModemLocation *self)
         location_context_quark =  (g_quark_from_static_string (
                                        LOCATION_CONTEXT_TAG));
 
-    ctx = g_object_get_qdata (G_OBJECT (self), location_context_quark);
+    /* Always try to get a new reference to the context */
+    ctx = g_object_dup_qdata (G_OBJECT (self),
+                              location_context_quark,
+                              (GDuplicateFunc)location_context_ref,
+                              NULL);
     if (!ctx) {
         /* Create context and keep it as object data */
-        ctx = g_new0 (LocationContext, 1);
-
+        ctx = g_slice_new0 (LocationContext);
+        ctx->ref_count = 2; /* one as qdata, one to return */
         g_object_set_qdata_full (
             G_OBJECT (self),
             location_context_quark,
             ctx,
-            (GDestroyNotify)location_context_free);
+            (GDestroyNotify)location_context_unref);
     }
 
     return ctx;
@@ -240,12 +257,13 @@ mm_iface_modem_location_gps_update (MMIfaceModemLocation *self,
     gboolean update_nmea = FALSE;
     gboolean update_raw = FALSE;
 
-    ctx = get_location_context (self);
     g_object_get (self,
                   MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
     if (!skeleton)
         return;
+
+    ctx = get_location_context_ref (self);
 
     if (mm_gdbus_modem_location_get_enabled (skeleton) & MM_MODEM_LOCATION_SOURCE_GPS_NMEA) {
         g_assert (ctx->location_gps_nmea != NULL);
@@ -273,6 +291,7 @@ mm_iface_modem_location_gps_update (MMIfaceModemLocation *self,
                                     update_nmea ? ctx->location_gps_nmea : NULL,
                                     update_raw ? ctx->location_gps_raw : NULL);
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -313,12 +332,13 @@ mm_iface_modem_location_3gpp_update_mcc_mnc (MMIfaceModemLocation *self,
     MmGdbusModemLocation *skeleton;
     LocationContext *ctx;
 
-    ctx = get_location_context (self);
     g_object_get (self,
                   MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
     if (!skeleton)
         return;
+
+    ctx = get_location_context_ref (self);
 
     if (mm_gdbus_modem_location_get_enabled (skeleton) & MM_MODEM_LOCATION_SOURCE_3GPP_LAC_CI) {
         guint changed = 0;
@@ -332,6 +352,7 @@ mm_iface_modem_location_3gpp_update_mcc_mnc (MMIfaceModemLocation *self,
             notify_3gpp_location_update (self, skeleton, ctx->location_3gpp);
     }
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -343,12 +364,13 @@ mm_iface_modem_location_3gpp_update_lac_ci (MMIfaceModemLocation *self,
     MmGdbusModemLocation *skeleton;
     LocationContext *ctx;
 
-    ctx = get_location_context (self);
     g_object_get (self,
                   MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
     if (!skeleton)
         return;
+
+    ctx = get_location_context_ref (self);
 
     if (mm_gdbus_modem_location_get_enabled (skeleton) & MM_MODEM_LOCATION_SOURCE_3GPP_LAC_CI) {
         guint changed = 0;
@@ -362,6 +384,7 @@ mm_iface_modem_location_3gpp_update_lac_ci (MMIfaceModemLocation *self,
             notify_3gpp_location_update (self, skeleton, ctx->location_3gpp);
     }
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -371,12 +394,13 @@ mm_iface_modem_location_3gpp_clear (MMIfaceModemLocation *self)
     MmGdbusModemLocation *skeleton;
     LocationContext *ctx;
 
-    ctx = get_location_context (self);
     g_object_get (self,
                   MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
     if (!skeleton)
         return;
+
+    ctx = get_location_context_ref (self);
 
     if (mm_gdbus_modem_location_get_enabled (skeleton) & MM_MODEM_LOCATION_SOURCE_3GPP_LAC_CI) {
         guint changed = 0;
@@ -390,6 +414,7 @@ mm_iface_modem_location_3gpp_clear (MMIfaceModemLocation *self)
             notify_3gpp_location_update (self, skeleton, ctx->location_3gpp);
     }
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -428,18 +453,20 @@ mm_iface_modem_location_cdma_bs_update (MMIfaceModemLocation *self,
     MmGdbusModemLocation *skeleton;
     LocationContext *ctx;
 
-    ctx = get_location_context (self);
     g_object_get (self,
                   MM_IFACE_MODEM_LOCATION_DBUS_SKELETON, &skeleton,
                   NULL);
     if (!skeleton)
         return;
 
+    ctx = get_location_context_ref (self);
+
     if (mm_gdbus_modem_location_get_enabled (skeleton) & MM_MODEM_LOCATION_SOURCE_CDMA_BS) {
         if (mm_location_cdma_bs_set (ctx->location_cdma_bs, longitude, latitude))
             notify_cdma_bs_location_update (self, skeleton, ctx->location_cdma_bs);
     }
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -476,7 +503,7 @@ update_location_source_status (MMIfaceModemLocation *self,
         mask &= ~source;
 
     /* Update status in the context */
-    ctx = get_location_context (self);
+    ctx = get_location_context_ref (self);
 
     switch (source) {
     case MM_MODEM_LOCATION_SOURCE_3GPP_LAC_CI:
@@ -515,6 +542,7 @@ update_location_source_status (MMIfaceModemLocation *self,
 
     mm_gdbus_modem_location_set_enabled (skeleton, mask);
 
+    location_context_unref (ctx);
     g_object_unref (skeleton);
 }
 
@@ -828,7 +856,7 @@ handle_setup (MmGdbusModemLocation *skeleton,
     }
 
     /* Enable/disable location signaling */
-    location_ctx = get_location_context (self);
+    location_ctx = get_location_context_ref (self);
     if (mm_gdbus_modem_location_get_signals_location (skeleton) != signal_location) {
         mm_dbg ("%s location signaling", signal_location ? "Enabling" : "Disabling");
         mm_gdbus_modem_location_set_signals_location (skeleton, signal_location);
@@ -845,6 +873,7 @@ handle_setup (MmGdbusModemLocation *skeleton,
                 skeleton,
                 build_location_dictionary (NULL, NULL, NULL, NULL, NULL));
     }
+    location_context_unref (location_ctx);
 
     str = mm_modem_location_source_build_string_from_mask (sources);
     mm_dbg ("Setting up location sources: '%s'", str);
@@ -872,7 +901,7 @@ handle_get_location (MmGdbusModemLocation *skeleton,
 {
     LocationContext *ctx;
 
-    ctx = get_location_context (self);
+    ctx = get_location_context_ref (self);
     mm_gdbus_modem_location_complete_get_location (
         skeleton,
         invocation,
@@ -881,6 +910,7 @@ handle_get_location (MmGdbusModemLocation *skeleton,
                                    ctx->location_gps_nmea,
                                    ctx->location_gps_raw,
                                    ctx->location_cdma_bs));
+    location_context_unref (ctx);
     return TRUE;
 }
 
