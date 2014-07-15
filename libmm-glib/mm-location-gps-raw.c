@@ -171,6 +171,7 @@ mm_location_gps_raw_add_trace (MMLocationGpsRaw *self,
                                const gchar *trace)
 {
     GMatchInfo *match_info = NULL;
+    guint updates = 0;
 
     /* Current implementation works only with $GPGGA traces */
     if (!g_str_has_prefix (trace, "$GPGGA"))
@@ -202,43 +203,68 @@ mm_location_gps_raw_add_trace (MMLocationGpsRaw *self,
                                                NULL);
 
     if (g_regex_match (self->priv->gpgga_regex, trace, 0, &match_info)) {
+        gchar   *utc_time;
+        gdouble  latitude;
+        gdouble  longitude;
+        gdouble  altitude;
+
         /* UTC time */
-        if (self->priv->utc_time)
-            g_free (self->priv->utc_time);
-        self->priv->utc_time = g_match_info_fetch (match_info, 1);
+        utc_time = g_match_info_fetch (match_info, 1);
+        if (g_strcmp0 (utc_time, self->priv->utc_time) != 0)
+            updates++;
+        g_free (self->priv->utc_time);
+        self->priv->utc_time = utc_time;
 
         /* Latitude */
-        self->priv->latitude = MM_LOCATION_LATITUDE_UNKNOWN;
-        if (get_longitude_or_latitude_from_match_info (match_info, 2, &self->priv->latitude)) {
+        latitude = MM_LOCATION_LATITUDE_UNKNOWN;
+        if (get_longitude_or_latitude_from_match_info (match_info, 2, &latitude)) {
             gchar *str;
 
             /* N/S */
             str = g_match_info_fetch (match_info, 3);
             if (str && str[0] == 'S')
-                self->priv->latitude *= -1;
+                latitude *= -1;
             g_free (str);
+        }
+        if (latitude != self->priv->latitude) {
+            updates++;
+            self->priv->latitude = latitude;
         }
 
         /* Longitude */
-        self->priv->longitude = MM_LOCATION_LONGITUDE_UNKNOWN;
-        if (get_longitude_or_latitude_from_match_info (match_info, 4, &self->priv->longitude)) {
+        longitude = MM_LOCATION_LONGITUDE_UNKNOWN;
+        if (get_longitude_or_latitude_from_match_info (match_info, 4, &longitude)) {
             gchar *str;
 
             /* N/S */
             str = g_match_info_fetch (match_info, 5);
             if (str && str[0] == 'W')
-                self->priv->longitude *= -1;
+                longitude *= -1;
             g_free (str);
+        }
+        if (longitude != self->priv->longitude) {
+            updates++;
+            self->priv->longitude = longitude;
         }
 
         /* Altitude */
-        self->priv->altitude = MM_LOCATION_ALTITUDE_UNKNOWN;
-        mm_get_double_from_match_info (match_info, 9, &self->priv->altitude);
+        altitude = MM_LOCATION_ALTITUDE_UNKNOWN;
+        mm_get_double_from_match_info (match_info, 9, &altitude);
+        if (altitude != self->priv->altitude) {
+            updates++;
+            self->priv->altitude = altitude;
+        }
+
+        /* If all mandatory parameters are not found, don't notify as updated as the
+         * get_dictionary() method will not build a valid GVariant if this happens. */
+        if (!self->priv->utc_time ||
+            self->priv->longitude == MM_LOCATION_LONGITUDE_UNKNOWN ||
+            self->priv->latitude == MM_LOCATION_LATITUDE_UNKNOWN)
+            updates = 0;
     }
 
     g_match_info_free (match_info);
-
-    return TRUE;
+    return !!updates;
 }
 
 /*****************************************************************************/
