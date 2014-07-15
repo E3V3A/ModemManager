@@ -320,6 +320,7 @@ cli/Makefile
 examples/Makefile
 examples/modem-watcher-python/Makefile
 examples/modem-watcher-javascript/Makefile
+examples/location-watcher/Makefile
 ])
 AC_OUTPUT
 

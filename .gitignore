@@ -163,5 +163,7 @@ plugins/test-modem-helpers-icera*
 plugins/test-modem-helpers-mbm*
 plugins/test-service-*
 
+examples/location-watcher/location-watcher
+
 TAGS
 ABOUT-NLS
