@@ -298,6 +298,12 @@ device_added (MMBaseManager *manager,
         goto out;
     }
 
+    /* Is the device a (still unsupported) POTS modem? */
+    if (g_udev_device_get_property_as_boolean (physdev, "ID_MM_POTS")) {
+        mm_dbg ("(%s/%s): blacklisted POTS modem", subsys, name);
+        goto out;
+    }
+
     /* Is the device in the manual-only greylist? If so, return if this is an
      * automatic scan. */
     if (!manual_scan && g_udev_device_get_property_as_boolean (physdev, "ID_MM_DEVICE_MANUAL_SCAN_ONLY")) {
