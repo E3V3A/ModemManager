@@ -28,6 +28,7 @@
 
 #include "mm-base-modem-at.h"
 #include "mm-broadband-modem.h"
+#include "mm-daemon-enums-types.h"
 #include "mm-iface-modem.h"
 #include "mm-iface-modem-3gpp.h"
 #include "mm-iface-modem-3gpp-ussd.h"
@@ -105,8 +106,11 @@ enum {
     PROP_MODEM_MESSAGING_SMS_PDU_MODE,
     PROP_MODEM_MESSAGING_SMS_DEFAULT_STORAGE,
     PROP_MODEM_SIMPLE_STATUS,
+    PROP_USSD_TYPE,
     PROP_LAST
 };
+
+static GParamSpec *properties[PROP_LAST];
 
 /* When CIND is supported, invalid indicators are marked with this value */
 #define CIND_INDICATOR_INVALID 255
@@ -150,6 +154,8 @@ struct _MMBroadbandModemPrivate {
     /* Properties */
     GObject *modem_3gpp_ussd_dbus_skeleton;
     /* Implementation helpers */
+    MMBroadbandModemUssdType ussd_type;
+    MMBroadbandModemUssdType ussd_preferred_type;
     gboolean use_unencoded_ussd;
     GSimpleAsyncResult *pending_ussd_action;
 
@@ -4435,9 +4441,9 @@ typedef struct {
     MMBroadbandModem *self;
     GSimpleAsyncResult *result;
     gchar *command;
-    gboolean current_is_unencoded;
-    gboolean encoded_used;
-    gboolean unencoded_used;
+    MMBroadbandModemUssdType current;
+    gboolean try_encoded;
+    gboolean try_unencoded;
 } Modem3gppUssdSendContext;
 
 static void
@@ -4503,15 +4509,20 @@ ussd_send_command_ready (MMBroadbandModem *self,
         return;
     }
 
-    /* Cache the hint for the next time we send something */
-    if (!ctx->self->priv->use_unencoded_ussd &&
-        ctx->current_is_unencoded) {
-        mm_dbg ("Will assume we want unencoded USSD commands");
-        ctx->self->priv->use_unencoded_ussd = TRUE;
-    } else if (ctx->self->priv->use_unencoded_ussd &&
-               !ctx->current_is_unencoded) {
-        mm_dbg ("Will assume we want encoded USSD commands");
-        ctx->self->priv->use_unencoded_ussd = FALSE;
+    /* If no specific type requested, cache the hint for the next time we send
+     * something */
+    if (ctx->self->priv->ussd_type == MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN) {
+        switch (ctx->current) {
+        case MM_BROADBAND_MODEM_USSD_TYPE_ENCODED:
+            mm_dbg ("Will assume we want encoded USSD commands");
+            break;
+        case MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED:
+            mm_dbg ("Will assume we want unencoded USSD commands");
+            break;
+        default:
+            g_assert_not_reached ();
+        }
+        ctx->self->priv->ussd_preferred_type = ctx->current;
     }
 
     if (!self->priv->pending_ussd_action)
@@ -4546,8 +4557,8 @@ modem_3gpp_ussd_context_send_encoded (Modem3gppUssdSendContext *ctx)
     }
 
     /* Build AT command */
-    ctx->encoded_used = TRUE;
-    ctx->current_is_unencoded = FALSE;
+    ctx->try_encoded = FALSE;
+    ctx->current = MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED;
     at_command = g_strdup_printf ("+CUSD=1,\"%s\",%d", encoded, scheme);
     g_free (encoded);
 
@@ -4572,8 +4583,8 @@ modem_3gpp_ussd_context_send_unencoded (Modem3gppUssdSendContext *ctx)
     gchar *at_command = NULL;
 
     /* Build AT command with action unencoded */
-    ctx->unencoded_used = TRUE;
-    ctx->current_is_unencoded = TRUE;
+    ctx->try_unencoded = FALSE;
+    ctx->current = MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED;
     at_command = g_strdup_printf ("+CUSD=1,\"%s\",%d",
                                   ctx->command,
                                   MM_MODEM_GSM_USSD_SCHEME_7BIT);
@@ -4596,8 +4607,22 @@ modem_3gpp_ussd_context_send_unencoded (Modem3gppUssdSendContext *ctx)
 static void
 modem_3gpp_ussd_context_step (Modem3gppUssdSendContext *ctx)
 {
-    if (ctx->encoded_used &&
-        ctx->unencoded_used) {
+    /* When both enabled, prefer the one given in the private info, which is
+     * computed from previous USSD commands. */
+    if (ctx->try_encoded && ctx->try_unencoded) {
+        switch (ctx->self->priv->ussd_preferred_type) {
+        case MM_BROADBAND_MODEM_USSD_TYPE_ENCODED:
+            modem_3gpp_ussd_context_send_encoded (ctx);
+        case MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED:
+            modem_3gpp_ussd_context_send_unencoded (ctx);
+        default:
+            g_assert_not_reached ();
+        }
+    } else if (ctx->try_encoded) {
+        modem_3gpp_ussd_context_send_encoded (ctx);
+    } else if (ctx->try_unencoded) {
+        modem_3gpp_ussd_context_send_unencoded (ctx);
+    } else {
         mm_iface_modem_3gpp_ussd_update_state (MM_IFACE_MODEM_3GPP_USSD (ctx->self),
                                                MM_MODEM_3GPP_USSD_SESSION_STATE_IDLE);
         g_simple_async_result_set_error (ctx->result,
@@ -4605,23 +4630,6 @@ modem_3gpp_ussd_context_step (Modem3gppUssdSendContext *ctx)
                                          MM_CORE_ERROR_FAILED,
                                          "Sending USSD command failed");
         modem_3gpp_ussd_send_context_complete_and_free (ctx);
-        return;
-    }
-
-    if (ctx->self->priv->use_unencoded_ussd) {
-        if (!ctx->unencoded_used)
-            modem_3gpp_ussd_context_send_unencoded (ctx);
-        else if (!ctx->encoded_used)
-            modem_3gpp_ussd_context_send_encoded (ctx);
-        else
-            g_assert_not_reached ();
-    } else {
-        if (!ctx->encoded_used)
-            modem_3gpp_ussd_context_send_encoded (ctx);
-        else if (!ctx->unencoded_used)
-            modem_3gpp_ussd_context_send_unencoded (ctx);
-        else
-            g_assert_not_reached ();
     }
 }
 
@@ -4639,6 +4647,7 @@ modem_3gpp_ussd_send (MMIfaceModem3gppUssd *self,
     g_assert (callback != NULL);
     ctx->self = g_object_ref (self);
     ctx->command = g_strdup (command);
+    ctx->current = MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN;
     ctx->result = g_simple_async_result_new (G_OBJECT (self),
                                              callback,
                                              user_data,
@@ -4646,6 +4655,22 @@ modem_3gpp_ussd_send (MMIfaceModem3gppUssd *self,
 
     mm_iface_modem_3gpp_ussd_update_state (MM_IFACE_MODEM_3GPP_USSD (self),
                                            MM_MODEM_3GPP_USSD_SESSION_STATE_ACTIVE);
+
+    switch (ctx->self->priv->ussd_type) {
+    case MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN:
+        /* We can try both */
+        ctx->try_encoded = TRUE;
+        ctx->try_unencoded = TRUE;
+        break;
+    case MM_BROADBAND_MODEM_USSD_TYPE_ENCODED:
+        /* Always try encoded only */
+        ctx->try_encoded = TRUE;
+        break;
+    case MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED:
+        /* Always try unencoded only */
+        ctx->try_unencoded = TRUE;
+        break;
+    }
 
     modem_3gpp_ussd_context_step (ctx);
 }
@@ -9565,6 +9590,9 @@ mm_broadband_modem_init (MMBroadbandModem *self)
     self->priv->modem_messaging_sms_default_storage = MM_SMS_STORAGE_UNKNOWN;
     self->priv->current_sms_mem1_storage = MM_SMS_STORAGE_UNKNOWN;
     self->priv->current_sms_mem2_storage = MM_SMS_STORAGE_UNKNOWN;
+    /* By default request to guess ussd type, starting with encoded */
+    self->priv->ussd_type = MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN;
+    self->priv->ussd_preferred_type = MM_BROADBAND_MODEM_USSD_TYPE_ENCODED;
 }
 
 static void
@@ -9979,4 +10007,13 @@ mm_broadband_modem_class_init (MMBroadbandModemClass *klass)
     g_object_class_override_property (object_class,
                                       PROP_MODEM_SIMPLE_STATUS,
                                       MM_IFACE_MODEM_SIMPLE_STATUS);
+
+    properties[PROP_USSD_TYPE] =
+        g_param_spec_enum (MM_BROADBAND_MODEM_USSD_TYPE,
+                           "USSD type",
+                           "USSD type (encoded, unencoded) to use",
+                           MM_TYPE_BROADBAND_MODEM_USSD_TYPE,
+                           MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN,
+                           G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
+    g_object_class_install_property (object_class, PROP_USSD_TYPE, properties[PROP_USSD_TYPE]);
 }

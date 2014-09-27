@@ -33,9 +33,17 @@
 #define MM_IS_BROADBAND_MODEM_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  MM_TYPE_BROADBAND_MODEM))
 #define MM_BROADBAND_MODEM_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  MM_TYPE_BROADBAND_MODEM, MMBroadbandModemClass))
 
+#define MM_BROADBAND_MODEM_USSD_TYPE "broadband-modem-ussd-type"
+
 typedef struct _MMBroadbandModem MMBroadbandModem;
 typedef struct _MMBroadbandModemClass MMBroadbandModemClass;
 typedef struct _MMBroadbandModemPrivate MMBroadbandModemPrivate;
+
+typedef enum { /*< underscore_name=mm_broadband_modem_ussd_type >*/
+    MM_BROADBAND_MODEM_USSD_TYPE_UNKNOWN,
+    MM_BROADBAND_MODEM_USSD_TYPE_ENCODED,
+    MM_BROADBAND_MODEM_USSD_TYPE_UNENCODED,
+} MMBroadbandModemUssdType;
 
 struct _MMBroadbandModem {
     MMBaseModem parent;

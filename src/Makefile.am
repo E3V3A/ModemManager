@@ -113,12 +113,13 @@ endif
 
 # Daemon specific enum types
 DAEMON_ENUMS = \
+	$(srcdir)/mm-broadband-modem.h \
 	$(srcdir)/mm-base-bearer.h \
 	$(srcdir)/mm-port-probe.h
 
 mm-daemon-enums-types.h: Makefile.am $(DAEMON_ENUMS) $(top_srcdir)/build-aux/mm-enums-template.h
 	$(AM_V_GEN) $(GLIB_MKENUMS) \
-		--fhead "#include \"mm-base-bearer.h\"\n#include \"mm-port-probe.h\"\n#ifndef __MM_DAEMON_ENUMS_TYPES_H__\n#define __MM_DAEMON_ENUMS_TYPES_H__\n" \
+		--fhead "#include \"mm-broadband-modem.h\"\n#include \"mm-base-bearer.h\"\n#include \"mm-port-probe.h\"\n#ifndef __MM_DAEMON_ENUMS_TYPES_H__\n#define __MM_DAEMON_ENUMS_TYPES_H__\n" \
 		--template $(top_srcdir)/build-aux/mm-enums-template.h \
 		--ftail "#endif /* __MM_DAEMON_ENUMS_TYPES_H__ */\n" \
 		$(DAEMON_ENUMS) > $@
