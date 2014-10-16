@@ -56,6 +56,7 @@ enum {
     PROP_SEND_DELAY,
     PROP_FD,
     PROP_SPEW_CONTROL,
+    PROP_NUL_CONTROL,
     PROP_RTS_CTS,
     PROP_FLASH_OK,
 
@@ -98,6 +99,7 @@ struct _MMPortSerialPrivate {
     guint stopbits;
     guint64 send_delay;
     gboolean spew_control;
+    gboolean nul_control;
     gboolean rts_cts;
     gboolean flash_ok;
 
@@ -942,15 +944,35 @@ common_input_available (MMPortSerial *self,
                 status = G_IO_STATUS_NORMAL;
         }
 
-
-
         /* If no bytes read, just wait for more data */
         if (bytes_read == 0)
             break;
 
-        g_assert (bytes_read > 0);
-        serial_debug (self, "<--", buf, bytes_read);
-        g_byte_array_append (self->priv->response, (const guint8 *) buf, bytes_read);
+        /* Remove all NUL bytes from the received data */
+        if (self->priv->nul_control) {
+            gchar newbuf[SERIAL_BUF_SIZE + 1];
+            guint i, j;
+
+            /* Remove all NUL bytes found in the stream */
+            for (i = 0, j = 0; i < bytes_read; i++) {
+                if (buf[i] != '\0')
+                    newbuf[j++] = buf[i];
+            }
+
+            g_debug ("(%s) nul control: removed %u bytes from input data, appended %u bytes",
+                     mm_port_get_device (MM_PORT (self)),
+                     (guint) (bytes_read - j),
+                     j);
+
+            if (j == 0)
+                break;
+
+            serial_debug (self, "<--", newbuf, j);
+            g_byte_array_append (self->priv->response, (const guint8 *) newbuf, j);
+        } else {
+            serial_debug (self, "<--", buf, bytes_read);
+            g_byte_array_append (self->priv->response, (const guint8 *) buf, bytes_read);
+        }
 
         /* Make sure the response doesn't grow too long */
         if ((self->priv->response->len > SERIAL_BUF_SIZE) && self->priv->spew_control) {
@@ -1900,6 +1922,11 @@ set_property (GObject *object,
         break;
     case PROP_SPEW_CONTROL:
         self->priv->spew_control = g_value_get_boolean (value);
+        g_debug ("SPEW CONTROL UPDATED: %s", self->priv->spew_control ? "yes" : "no");
+        break;
+    case PROP_NUL_CONTROL:
+        self->priv->nul_control = g_value_get_boolean (value);
+        g_debug ("NUL CONTROL UPDATED: %s", self->priv->nul_control ? "yes" : "no");
         break;
     case PROP_RTS_CTS:
         self->priv->rts_cts = g_value_get_boolean (value);
@@ -1942,6 +1969,9 @@ get_property (GObject *object,
         break;
     case PROP_SPEW_CONTROL:
         g_value_set_boolean (value, self->priv->spew_control);
+        break;
+    case PROP_NUL_CONTROL:
+        g_value_set_boolean (value, self->priv->nul_control);
         break;
     case PROP_RTS_CTS:
         g_value_set_boolean (value, self->priv->rts_cts);
@@ -2052,6 +2082,14 @@ mm_port_serial_class_init (MMPortSerialClass *klass)
          g_param_spec_boolean (MM_PORT_SERIAL_SPEW_CONTROL,
                                "SpewControl",
                                "Spew control",
+                               FALSE,
+                               G_PARAM_READWRITE));
+
+    g_object_class_install_property
+        (object_class, PROP_NUL_CONTROL,
+         g_param_spec_boolean (MM_PORT_SERIAL_NUL_CONTROL,
+                               "NulControl",
+                               "Nul control",
                                FALSE,
                                G_PARAM_READWRITE));
 

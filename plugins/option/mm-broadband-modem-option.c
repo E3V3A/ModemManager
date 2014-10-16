@@ -1137,6 +1137,22 @@ modem_3gpp_disable_unsolicited_events (MMIfaceModem3gpp *self,
 /* Setup ports (Broadband modem class) */
 
 static void
+setup_nul_control (MMBroadbandModem *self)
+{
+    MMPortSerialAt *ports[2];
+    guint i;
+
+    ports[0] = mm_base_modem_peek_port_primary (MM_BASE_MODEM (self));
+    ports[1] = mm_base_modem_peek_port_secondary (MM_BASE_MODEM (self));
+
+    for (i = 0; i < 2; i++) {
+        if (!ports[i])
+            continue;
+        g_object_set (ports[i], MM_PORT_SERIAL_NUL_CONTROL, TRUE, NULL);
+    }
+}
+
+static void
 setup_ports (MMBroadbandModem *self)
 {
     /* Call parent's setup ports first always */
@@ -1144,6 +1160,8 @@ setup_ports (MMBroadbandModem *self)
 
     /* Now reset the unsolicited messages we'll handle when enabled */
     set_unsolicited_events_handlers (MM_BROADBAND_MODEM_OPTION (self), FALSE);
+
+    setup_nul_control (self);
 }
 
 /*****************************************************************************/
