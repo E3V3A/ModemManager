@@ -301,7 +301,7 @@ libmm_plugin_nokia_icera_la_SOURCES = \
 libmm_plugin_nokia_icera_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS) $(ICERA_COMMON_COMPILER_FLAGS)
 libmm_plugin_nokia_icera_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
 libmm_plugin_nokia_icera_la_LIBADD = $(ICERA_COMMON_LIBADD_FLAGS)
-udevrules_DATA += nokia/77-mm-nokia-port-types.rules
+udevrules_DATA += nokia/77-mm-nokia-icera.rules
 
 # Zte
 libmm_plugin_zte_la_SOURCES = \

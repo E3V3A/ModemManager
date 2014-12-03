@@ -82,13 +82,16 @@ G_MODULE_EXPORT MMPlugin *
 mm_plugin_create (void)
 {
     static const gchar *subsystems[] = { "tty", "net", NULL };
-    static const guint16 vendor_ids[] = { 0x0421, 0 };
+    static const gchar *udev_tags[] = {
+        "ID_MM_NOKIA_ICERA",
+        NULL
+    };
 
     return MM_PLUGIN (
         g_object_new (MM_TYPE_PLUGIN_NOKIA_ICERA,
                       MM_PLUGIN_NAME,               "Nokia (Icera)",
                       MM_PLUGIN_ALLOWED_SUBSYSTEMS, subsystems,
-                      MM_PLUGIN_ALLOWED_VENDOR_IDS, vendor_ids,
+                      MM_PLUGIN_ALLOWED_UDEV_TAGS,  udev_tags,
                       MM_PLUGIN_ALLOWED_AT,         TRUE,
                       MM_PLUGIN_ALLOWED_ICERA,      TRUE, /* Only Nokia/Icera modems */
                       NULL));
