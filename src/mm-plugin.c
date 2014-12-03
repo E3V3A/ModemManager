@@ -63,6 +63,7 @@ struct _MMPluginPrivate {
     mm_uint16_pair *product_ids;
     mm_uint16_pair *forbidden_product_ids;
     gchar **udev_tags;
+    gchar **forbidden_udev_tags;
 
     /* Post probing filters */
     gchar **vendor_strings;
@@ -102,6 +103,7 @@ enum {
     PROP_ALLOWED_PRODUCT_STRINGS,
     PROP_FORBIDDEN_PRODUCT_STRINGS,
     PROP_ALLOWED_UDEV_TAGS,
+    PROP_FORBIDDEN_UDEV_TAGS,
     PROP_ALLOWED_AT,
     PROP_ALLOWED_SINGLE_AT,
     PROP_ALLOWED_QCDM,
@@ -379,6 +381,20 @@ apply_pre_probing_filters (MMPlugin *self,
                     self->priv->name,
                     g_udev_device_get_name (port));
             return TRUE;
+        }
+    }
+
+    /* The plugin may specify that ports with some given udev tags are
+     * not supported. If that is the case, filter by udev tag */
+    if (self->priv->forbidden_udev_tags) {
+        for (i = 0; self->priv->forbidden_udev_tags[i]; i++) {
+            /* Check if the port was tagged */
+            if (g_udev_device_get_property_as_boolean (port, self->priv->forbidden_udev_tags[i])) {
+                mm_dbg ("(%s) [%s] filtered by udev tags",
+                        self->priv->name,
+                        g_udev_device_get_name (port));
+                return TRUE;
+            }
         }
     }
 
@@ -1023,6 +1039,10 @@ set_property (GObject *object,
         /* Construct only */
         self->priv->udev_tags = g_value_dup_boxed (value);
         break;
+    case PROP_FORBIDDEN_UDEV_TAGS:
+        /* Construct only */
+        self->priv->forbidden_udev_tags = g_value_dup_boxed (value);
+        break;
     case PROP_ALLOWED_AT:
         /* Construct only */
         self->priv->at = g_value_get_boolean (value);
@@ -1138,6 +1158,9 @@ get_property (GObject *object,
     case PROP_ALLOWED_UDEV_TAGS:
         g_value_set_boxed (value, self->priv->udev_tags);
         break;
+    case PROP_FORBIDDEN_UDEV_TAGS:
+        g_value_set_boxed (value, self->priv->forbidden_udev_tags);
+        break;
     case PROP_ICERA_PROBE:
         g_value_set_boolean (value, self->priv->icera_probe);
         break;
@@ -1184,6 +1207,7 @@ finalize (GObject *object)
     _g_boxed_free0 (MM_TYPE_UINT16_PAIR_ARRAY, self->priv->product_ids);
     _g_boxed_free0 (MM_TYPE_UINT16_PAIR_ARRAY, self->priv->forbidden_product_ids);
     _g_boxed_free0 (G_TYPE_STRV, self->priv->udev_tags);
+    _g_boxed_free0 (G_TYPE_STRV, self->priv->forbidden_udev_tags);
     _g_boxed_free0 (G_TYPE_STRV, self->priv->vendor_strings);
     _g_boxed_free0 (MM_TYPE_STR_PAIR_ARRAY, self->priv->product_strings);
     _g_boxed_free0 (MM_TYPE_STR_PAIR_ARRAY, self->priv->forbidden_product_strings);
@@ -1301,6 +1325,15 @@ mm_plugin_class_init (MMPluginClass *klass)
          g_param_spec_boxed (MM_PLUGIN_ALLOWED_UDEV_TAGS,
                              "Allowed Udev tags",
                              "List of udev tags this plugin may expect, "
+                             "should be an array of strings finished with 'NULL'",
+                             G_TYPE_STRV,
+                             G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+
+    g_object_class_install_property
+        (object_class, PROP_FORBIDDEN_UDEV_TAGS,
+         g_param_spec_boxed (MM_PLUGIN_FORBIDDEN_UDEV_TAGS,
+                             "Forbidden Udev tags",
+                             "List of udev tags this plugin cannot support, "
                              "should be an array of strings finished with 'NULL'",
                              G_TYPE_STRV,
                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));

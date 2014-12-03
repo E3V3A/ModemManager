@@ -49,6 +49,7 @@
 #define MM_PLUGIN_ALLOWED_PRODUCT_STRINGS   "allowed-product-strings"
 #define MM_PLUGIN_FORBIDDEN_PRODUCT_STRINGS "forbidden-product-strings"
 #define MM_PLUGIN_ALLOWED_UDEV_TAGS         "allowed-udev-tags"
+#define MM_PLUGIN_FORBIDDEN_UDEV_TAGS       "forbidden-udev-tags"
 #define MM_PLUGIN_ALLOWED_AT                "allowed-at"
 #define MM_PLUGIN_ALLOWED_SINGLE_AT         "allowed-single-at"
 #define MM_PLUGIN_ALLOWED_QCDM              "allowed-qcdm"
