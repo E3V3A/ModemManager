@@ -66,6 +66,10 @@ mm_plugin_create (void)
     static const gchar *subsystems[] = { "tty", NULL };
     static const guint16 vendor_ids[] = { 0x0421, 0 };
     static const gchar *vendor_strings[] = { "nokia", NULL };
+    static const gchar *forbidden_udev_tags[] = {
+        "ID_MM_NOKIA_ICERA",
+        NULL
+    };
 
     return MM_PLUGIN (
         g_object_new (MM_TYPE_PLUGIN_NOKIA,
@@ -76,6 +80,7 @@ mm_plugin_create (void)
                       MM_PLUGIN_CUSTOM_AT_PROBE,        custom_at_probe,
                       MM_PLUGIN_ALLOWED_SINGLE_AT,      TRUE, /* only 1 AT port expected! */
                       MM_PLUGIN_FORBIDDEN_ICERA,        TRUE, /* No Nokia/Icera modems */
+                      MM_PLUGIN_FORBIDDEN_UDEV_TAGS,    forbidden_udev_tags,
                       NULL));
 }
 
