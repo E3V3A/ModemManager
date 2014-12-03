@@ -58,9 +58,10 @@ grab_port (MMPlugin *self,
 
     port = mm_port_probe_peek_port (probe);
 
-    /* Look for port type hints */
+    /* For Nokia Internet Sticks (CS-xx) the modem/PPP port appears to always
+     * be USB interface 1 */
     if (mm_port_probe_is_at (probe) &&
-        g_udev_device_get_property_as_boolean (port, "ID_MM_NOKIA_PORT_TYPE_MODEM")) {
+        g_udev_device_get_property_as_int (port, "ID_USB_INTERFACE_NUM") == 1) {
         mm_dbg ("Nokia: AT port '%s/%s' flagged as primary",
                 mm_port_probe_get_port_subsys (probe),
                 mm_port_probe_get_port_name (probe));
