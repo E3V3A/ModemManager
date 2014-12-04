@@ -9,20 +9,70 @@ SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="?*", ENV{.MM_USBIFNUM}="$attr{bInte
 
 # VID/PID list for Icera-based Nokia Internet Sticks (CS-xx)
 
+# These devices have two modes, a "WHC" mode (Wireless Handset Control, where the
+# first USB interface is a WHC interface), and a "Windows" mode (where the
+# WHC interface is missing and the first USB interface is a CDC-ACM interface).
+# Each mode presents a different USB PID.
+
+# CS-10
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="060D", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="060E", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-15
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0611", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0612", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-12
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0619", ENV{ID_MM_NOKIA_ICERA}="1"
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="061A", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# ?
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="061B", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="061C", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-11
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="061E", ENV{ID_MM_NOKIA_ICERA}="1"
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="061F", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# ?
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0620", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-17
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0623", ENV{ID_MM_NOKIA_ICERA}="1"
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0624", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# ?
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0625", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-18
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0629", ENV{ID_MM_NOKIA_ICERA}="1"
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="062A", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-19
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="062D", ENV{ID_MM_NOKIA_ICERA}="1"
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="062E", ENV{ID_MM_NOKIA_ICERA}="1"
+
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="062F", ENV{ID_MM_NOKIA_ICERA}="1"
-ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0638", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# CS-7M
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0632", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# 7M-01/21M-01
 ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0634", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0636", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# 7M-02/21M-02
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0638", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0639", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="063B", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# 21M-04
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="063E", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0640", ENV{ID_MM_NOKIA_ICERA}="1"
+
+# 42M
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0643", ENV{ID_MM_NOKIA_ICERA}="1"
+ATTRS{idVendor}=="0421", ATTRS{idProduct}=="0645", ENV{ID_MM_NOKIA_ICERA}="1"
+
 
 LABEL="mm_nokia_icera_end"
