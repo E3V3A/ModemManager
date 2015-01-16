@@ -262,6 +262,16 @@ load_unlock_required_ready (MMIfaceModem *self,
     MMModemLock lock;
 
     lock = MM_IFACE_MODEM_GET_INTERFACE (self)->load_unlock_required_finish (self, res, &error);
+
+    /* If cancelled, stop right away */
+    if (g_cancellable_is_cancelled (mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)))) {
+        if (error)
+            g_error_free (error);
+        g_simple_async_result_set_error (ctx->result, MM_CORE_ERROR, MM_CORE_ERROR_CANCELLED, "Operation cancelled");
+        internal_load_unlock_required_context_complete_and_free (ctx);
+        return;
+    }
+
     if (error) {
         mm_dbg ("Couldn't check if unlock required: '%s'", error->message);
 
