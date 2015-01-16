@@ -353,6 +353,10 @@ mm_base_modem_release_port (MMBaseModem *self,
         return;
     }
 
+    /* Explicitly call port dispose() right away; this will close and cleanup
+     * all internal resources of the port, and therefore flag it as invalid */
+    g_object_run_dispose (G_OBJECT (port));
+
     if (port == (MMPort *)self->priv->primary) {
         /* Cancel modem-wide cancellable; no further actions can be done
          * without a primary port. */

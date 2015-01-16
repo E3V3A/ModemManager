@@ -351,6 +351,16 @@ mm_device_release_port (MMDevice    *self,
         g_signal_emit (self, signals[SIGNAL_PORT_RELEASED], 0, mm_port_probe_peek_port (probe));
         g_object_unref (probe);
     }
+
+    if (self->priv->modem &&
+        mm_base_modem_owns_port (self->priv->modem,
+                                 g_udev_device_get_subsystem (udev_port),
+                                 g_udev_device_get_name (udev_port))) {
+        /* Try to remove port from modem */
+        mm_base_modem_release_port (self->priv->modem,
+                                    g_udev_device_get_subsystem (udev_port),
+                                    g_udev_device_get_name (udev_port));
+    }
 }
 
 void
