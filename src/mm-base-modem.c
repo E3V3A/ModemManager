@@ -118,10 +118,15 @@ mm_base_modem_get_port (MMBaseModem *self,
     g_return_val_if_fail (name != NULL, NULL);
     g_return_val_if_fail (subsys != NULL, NULL);
 
-    /* Only 'net' or 'tty' should be given */
-    g_return_val_if_fail (g_str_equal (subsys, "net") ||
-                          g_str_equal (subsys, "tty"),
-                          NULL);
+    /* Only allow 'tty', 'net' and 'cdc-wdm' ports */
+    if (!g_str_equal (subsys, "net") &&
+        !g_str_equal (subsys, "tty") &&
+        !(g_str_has_prefix (subsys, "usb") && g_str_has_prefix (name, "cdc-wdm")) &&
+        !g_str_equal (subsys, "virtual")) {
+        mm_warn ("(%s/%s): cannot get unexpected port type",
+                 subsys, name);
+        return NULL;
+    }
 
     key = get_hash_key (subsys, name);
     port = g_hash_table_lookup (self->priv->ports, key);
