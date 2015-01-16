@@ -1505,6 +1505,8 @@ finalize (GObject *object)
     g_strfreev (self->priv->drivers);
     g_free (self->priv->plugin);
 
+    g_object_unref (self->priv->cancellable);
+
     G_OBJECT_CLASS (mm_base_modem_parent_class)->finalize (object);
 }
 
@@ -1520,11 +1522,17 @@ dispose (GObject *object)
 
     /* Ensure we cancel any ongoing operation, but before
      * disconnect our own signal handler, or we'll end up with
-     * another reference of the modem object around. */
-    g_cancellable_disconnect (self->priv->cancellable,
-                              self->priv->invalid_if_cancelled);
-    g_cancellable_cancel (self->priv->cancellable);
-    g_clear_object (&self->priv->cancellable);
+     * another reference of the modem object around.
+     *
+     * Also, we don't want to clear the cancellable here because it must
+     * be available for mm_base_modem_peek|get_cancellable() as long
+     * as there's a modem reference around. */
+    if (self->priv->invalid_if_cancelled) {
+        g_cancellable_disconnect (self->priv->cancellable, self->priv->invalid_if_cancelled);
+        self->priv->invalid_if_cancelled = 0;
+    }
+    if (!g_cancellable_is_cancelled (self->priv->cancellable))
+        g_cancellable_cancel (self->priv->cancellable);
 
     g_clear_object (&self->priv->primary);
     g_clear_object (&self->priv->secondary);
