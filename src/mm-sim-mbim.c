@@ -35,6 +35,7 @@ G_DEFINE_TYPE (MMSimMbim, mm_sim_mbim, MM_TYPE_BASE_SIM)
 static gboolean
 peek_device (gpointer self,
              MbimDevice **o_device,
+             GCancellable **o_cancellable,
              GAsyncReadyCallback callback,
              gpointer user_data)
 {
@@ -59,6 +60,7 @@ peek_device (gpointer self,
         return FALSE;
     }
 
+    *o_cancellable = mm_base_modem_peek_cancellable (modem);
     *o_device = mm_port_mbim_peek_device (port);
     return TRUE;
 }
@@ -115,8 +117,9 @@ load_sim_identifier (MMBaseSim *self,
     MbimDevice *device;
     MbimMessage *message;
     GSimpleAsyncResult *result;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, load_sim_identifier);
@@ -125,7 +128,7 @@ load_sim_identifier (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)simid_subscriber_ready_state_ready,
                          result);
     mbim_message_unref (message);
@@ -183,8 +186,9 @@ load_imsi (MMBaseSim *self,
     MbimDevice *device;
     MbimMessage *message;
     GSimpleAsyncResult *result;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, load_imsi);
@@ -193,7 +197,7 @@ load_imsi (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)imsi_subscriber_ready_state_ready,
                          result);
     mbim_message_unref (message);
@@ -250,8 +254,9 @@ load_operator_identifier (MMBaseSim *self,
     MbimDevice *device;
     MbimMessage *message;
     GSimpleAsyncResult *result;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, load_operator_identifier);
@@ -260,7 +265,7 @@ load_operator_identifier (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)load_operator_identifier_ready,
                          result);
     mbim_message_unref (message);
@@ -317,8 +322,9 @@ load_operator_name (MMBaseSim *self,
     MbimDevice *device;
     MbimMessage *message;
     GSimpleAsyncResult *result;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, load_operator_name);
@@ -327,7 +333,7 @@ load_operator_name (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)load_operator_name_ready,
                          result);
     mbim_message_unref (message);
@@ -395,8 +401,9 @@ send_pin (MMBaseSim *self,
     MbimMessage *message;
     GSimpleAsyncResult *result;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, send_pin);
@@ -418,7 +425,7 @@ send_pin (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)pin_set_enter_ready,
                          result);
     mbim_message_unref (message);
@@ -488,8 +495,9 @@ send_puk (MMBaseSim *self,
     MbimMessage *message;
     GSimpleAsyncResult *result;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, send_puk);
@@ -511,7 +519,7 @@ send_puk (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)puk_set_enter_ready,
                          result);
     mbim_message_unref (message);
@@ -568,8 +576,9 @@ enable_pin (MMBaseSim *self,
     MbimMessage *message;
     GSimpleAsyncResult *result;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, send_puk);
@@ -591,7 +600,7 @@ enable_pin (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)pin_set_enable_ready,
                          result);
     mbim_message_unref (message);
@@ -648,8 +657,9 @@ change_pin (MMBaseSim *self,
     MbimMessage *message;
     GSimpleAsyncResult *result;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, send_puk);
@@ -671,7 +681,7 @@ change_pin (MMBaseSim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         cancellable,
                          (GAsyncReadyCallback)pin_set_change_ready,
                          result);
     mbim_message_unref (message);

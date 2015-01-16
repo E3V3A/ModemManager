@@ -38,35 +38,34 @@ G_DEFINE_TYPE (MMSmsMbim, mm_sms_mbim, MM_TYPE_BASE_SMS)
 static gboolean
 peek_device (gpointer self,
              MbimDevice **o_device,
+             GCancellable **o_cancellable,
              GAsyncReadyCallback callback,
              gpointer user_data)
 {
     MMBaseModem *modem = NULL;
+    MMPortMbim *port;
 
     g_object_get (G_OBJECT (self),
                   MM_BASE_SMS_MODEM, &modem,
                   NULL);
     g_assert (MM_IS_BASE_MODEM (modem));
 
-    if (o_device) {
-        MMPortMbim *port;
+    port = mm_base_modem_peek_port_mbim (modem);
+    g_object_unref (modem);
 
-        port = mm_base_modem_peek_port_mbim (modem);
-        if (!port) {
-            g_simple_async_report_error_in_idle (G_OBJECT (self),
-                                                 callback,
-                                                 user_data,
-                                                 MM_CORE_ERROR,
-                                                 MM_CORE_ERROR_FAILED,
-                                                 "Couldn't peek MBIM port");
-            g_object_unref (modem);
-            return FALSE;
-        }
+    if (!port) {
+        g_simple_async_report_error_in_idle (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             MM_CORE_ERROR,
+                                             MM_CORE_ERROR_FAILED,
+                                             "Couldn't peek MBIM port");
 
-        *o_device = mm_port_mbim_peek_device (port);
+        return FALSE;
     }
 
-    g_object_unref (modem);
+    *o_cancellable = mm_base_modem_peek_cancellable (modem);
+    *o_device = mm_port_mbim_peek_device (port);
     return TRUE;
 }
 
@@ -79,6 +78,7 @@ typedef struct {
     MbimDevice *device;
     GSimpleAsyncResult *result;
     GList *current;
+    GCancellable *cancellable;
 } SmsSendContext;
 
 static void
@@ -86,6 +86,8 @@ sms_send_context_complete_and_free (SmsSendContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->device);
     g_object_unref (ctx->modem);
     g_object_unref (ctx->self);
@@ -172,7 +174,7 @@ sms_send_next_part (SmsSendContext *ctx)
     mbim_device_command (ctx->device,
                          message,
                          30,
-                         NULL,
+                         ctx->cancellable,
                          (GAsyncReadyCallback)sms_send_set_ready,
                          ctx);
     mbim_message_unref (message);
@@ -186,8 +188,9 @@ sms_send (MMBaseSms *self,
 {
     SmsSendContext *ctx;
     MbimDevice *device;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     /* Setup the context */
@@ -198,6 +201,7 @@ sms_send (MMBaseSms *self,
                                              sms_send);
     ctx->self = g_object_ref (self);
     ctx->device = g_object_ref (device);
+    ctx->cancellable = cancellable ? g_object_ref (cancellable) : NULL;
     g_object_get (self,
                   MM_BASE_SMS_MODEM, &ctx->modem,
                   NULL);
@@ -215,6 +219,7 @@ typedef struct {
     GSimpleAsyncResult *result;
     GList *current;
     guint n_failed;
+    GCancellable *cancellable;
 } SmsDeletePartsContext;
 
 static void
@@ -222,6 +227,8 @@ sms_delete_parts_context_complete_and_free (SmsDeletePartsContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->device);
     g_object_unref (ctx->modem);
     g_object_unref (ctx->self);
@@ -300,7 +307,7 @@ delete_next_part (SmsDeletePartsContext *ctx)
     mbim_device_command (ctx->device,
                          message,
                          10,
-                         NULL,
+                         ctx->cancellable,
                          (GAsyncReadyCallback)sms_delete_set_ready,
                          ctx);
     mbim_message_unref (message);
@@ -314,8 +321,9 @@ sms_delete (MMBaseSms *self,
 {
     SmsDeletePartsContext *ctx;
     MbimDevice *device;
+    GCancellable *cancellable = NULL;
 
-    if (!peek_device (self, &device, callback, user_data))
+    if (!peek_device (self, &device, &cancellable, callback, user_data))
         return;
 
     ctx = g_slice_new0 (SmsDeletePartsContext);
@@ -325,6 +333,7 @@ sms_delete (MMBaseSms *self,
                                              sms_delete);
     ctx->self = g_object_ref (self);
     ctx->device = g_object_ref (device);
+    ctx->cancellable = cancellable ? g_object_ref (cancellable) : NULL;
     g_object_get (self,
                   MM_BASE_SMS_MODEM, &ctx->modem,
                   NULL);

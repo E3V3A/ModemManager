@@ -212,7 +212,7 @@ modem_load_current_capabilities (MMIfaceModem *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)device_caps_query_ready,
                          ctx);
     mbim_message_unref (message);
@@ -647,7 +647,7 @@ unlock_required_subscriber_ready_state_ready (MbimDevice *device,
         mbim_device_command (device,
                              message,
                              10,
-                             NULL,
+                             mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
                              (GAsyncReadyCallback)pin_query_ready,
                              ctx);
         mbim_message_unref (message);
@@ -674,7 +674,7 @@ wait_for_sim_ready (LoadUnlockRequiredContext *ctx)
     mbim_device_command (ctx->device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
                          (GAsyncReadyCallback)unlock_required_subscriber_ready_state_ready,
                          ctx);
     mbim_message_unref (message);
@@ -778,7 +778,7 @@ modem_load_unlock_retries (MMIfaceModem *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)pin_query_unlock_retries_ready,
                          result);
     mbim_message_unref (message);
@@ -850,7 +850,7 @@ modem_load_own_numbers (MMIfaceModem *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)own_numbers_subscriber_ready_state_ready,
                          result);
     mbim_message_unref (message);
@@ -928,7 +928,7 @@ modem_load_power_state (MMIfaceModem *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)radio_state_query_ready,
                          result);
     mbim_message_unref (message);
@@ -1037,7 +1037,7 @@ common_power_up_down (MMIfaceModem *self,
     mbim_device_command (device,
                          message,
                          20,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          ready_cb,
                          result);
     mbim_message_unref (message);
@@ -1512,7 +1512,7 @@ modem_3gpp_load_enabled_facility_locks (MMIfaceModem3gpp *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)pin_list_query_ready,
                          result);
     mbim_message_unref (message);
@@ -1876,7 +1876,7 @@ sms_notification_read_alert_sms (MMBroadbandModemMbim *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)alert_sms_read_query_ready,
                          g_object_ref (self));
     mbim_message_unref (message);
@@ -2157,7 +2157,7 @@ common_enable_disable_unsolicited_events (MMBroadbandModemMbim *self,
     mbim_device_command (device,
                          request,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)subscribe_list_set_ready_cb,
                          result);
     mbim_message_unref (request);
@@ -2391,7 +2391,7 @@ modem_3gpp_run_registration_checks (MMIfaceModem3gpp *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)register_state_query_ready,
                          result);
     mbim_message_unref (message);
@@ -2480,7 +2480,7 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp *self,
     mbim_device_command (device,
                          message,
                          60,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)register_state_set_ready,
                          result);
     mbim_message_unref (message);
@@ -2555,7 +2555,7 @@ modem_3gpp_scan_networks (MMIfaceModem3gpp *self,
     mbim_device_command (device,
                          message,
                          120,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)visible_providers_query_ready,
                          result);
     mbim_message_unref (message);
@@ -2752,7 +2752,7 @@ load_initial_sms_parts (MMIfaceModemMessaging *self,
     mbim_device_command (device,
                          message,
                          10,
-                         NULL,
+                         mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                          (GAsyncReadyCallback)sms_read_query_ready,
                          ctx);
     mbim_message_unref (message);
