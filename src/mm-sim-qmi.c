@@ -35,6 +35,7 @@ static gboolean
 ensure_qmi_client (MMSimQmi *self,
                    QmiService service,
                    QmiClient **o_client,
+                   GCancellable **o_cancellable,
                    GAsyncReadyCallback callback,
                    gpointer user_data)
 {
@@ -74,6 +75,7 @@ ensure_qmi_client (MMSimQmi *self,
         return FALSE;
     }
 
+    *o_cancellable = mm_base_modem_peek_cancellable (modem);
     *o_client = client;
     return TRUE;
 }
@@ -134,9 +136,11 @@ load_sim_identifier (MMBaseSim *self,
 {
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -149,7 +153,7 @@ load_sim_identifier (MMBaseSim *self,
     qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (client),
                                   NULL,
                                   5,
-                                  NULL,
+                                  cancellable,
                                   (GAsyncReadyCallback)dms_uim_get_iccid_ready,
                                   result);
 }
@@ -210,9 +214,11 @@ load_imsi (MMBaseSim *self,
 {
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -225,7 +231,7 @@ load_imsi (MMBaseSim *self,
     qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (client),
                                  NULL,
                                  5,
-                                 NULL,
+                                 cancellable,
                                  (GAsyncReadyCallback)dms_uim_get_imsi_ready,
                                  result);
 }
@@ -304,9 +310,11 @@ send_pin (MMBaseSim *self,
     QmiMessageDmsUimVerifyPinInput *input;
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -325,7 +333,7 @@ send_pin (MMBaseSim *self,
     qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (client),
                                    input,
                                    5,
-                                   NULL,
+                                   cancellable,
                                    (GAsyncReadyCallback)dms_uim_verify_pin_ready,
                                    result);
     qmi_message_dms_uim_verify_pin_input_unref (input);
@@ -379,9 +387,11 @@ send_puk (MMBaseSim *self,
     QmiMessageDmsUimUnblockPinInput *input;
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -402,7 +412,7 @@ send_puk (MMBaseSim *self,
     qmi_client_dms_uim_unblock_pin (QMI_CLIENT_DMS (client),
                                     input,
                                     5,
-                                    NULL,
+                                    cancellable,
                                     (GAsyncReadyCallback)dms_uim_unblock_pin_ready,
                                     result);
     qmi_message_dms_uim_unblock_pin_input_unref (input);
@@ -456,9 +466,11 @@ change_pin (MMBaseSim *self,
     QmiMessageDmsUimChangePinInput *input;
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -479,7 +491,7 @@ change_pin (MMBaseSim *self,
     qmi_client_dms_uim_change_pin (QMI_CLIENT_DMS (client),
                                    input,
                                    5,
-                                   NULL,
+                                   cancellable,
                                    (GAsyncReadyCallback)dms_uim_change_pin_ready,
                                    result);
     qmi_message_dms_uim_change_pin_input_unref (input);
@@ -533,9 +545,11 @@ enable_pin (MMBaseSim *self,
     QmiMessageDmsUimSetPinProtectionInput *input;
     GSimpleAsyncResult *result;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     if (!ensure_qmi_client (MM_SIM_QMI (self),
                             QMI_SERVICE_DMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -557,7 +571,7 @@ enable_pin (MMBaseSim *self,
     qmi_client_dms_uim_set_pin_protection (QMI_CLIENT_DMS (client),
                                            input,
                                            5,
-                                           NULL,
+                                           cancellable,
                                            (GAsyncReadyCallback)dms_uim_set_pin_protection_ready,
                                            result);
     qmi_message_dms_uim_set_pin_protection_input_unref (input);

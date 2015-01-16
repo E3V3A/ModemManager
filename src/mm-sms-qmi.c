@@ -41,6 +41,7 @@ static gboolean
 ensure_qmi_client (MMSmsQmi *self,
                    QmiService service,
                    QmiClient **o_client,
+                   GCancellable **o_cancellable,
                    GAsyncReadyCallback callback,
                    gpointer user_data)
 {
@@ -80,6 +81,7 @@ ensure_qmi_client (MMSmsQmi *self,
         return FALSE;
     }
 
+    *o_cancellable = mm_base_modem_peek_cancellable (modem);
     *o_client = client;
     return TRUE;
 }
@@ -121,12 +123,15 @@ typedef struct {
     GSimpleAsyncResult *result;
     MMSmsStorage storage;
     GList *current;
+    GCancellable *cancellable;
 } SmsStoreContext;
 
 static void
 sms_store_context_complete_and_free (SmsStoreContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->result);
     g_object_unref (ctx->client);
     g_object_unref (ctx->modem);
@@ -242,7 +247,7 @@ sms_store_next_part (SmsStoreContext *ctx)
     qmi_client_wms_raw_write (ctx->client,
                               input,
                               5,
-                              NULL,
+                              ctx->cancellable,
                               (GAsyncReadyCallback)store_ready,
                               ctx);
     qmi_message_wms_raw_write_input_unref (input);
@@ -258,10 +263,12 @@ sms_store (MMBaseSms *self,
     SmsStoreContext *ctx;
     QmiClient *client = NULL;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
     /* Ensure WMS client */
     if (!ensure_qmi_client (MM_SMS_QMI (self),
                             QMI_SERVICE_WMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -274,6 +281,7 @@ sms_store (MMBaseSms *self,
     ctx->self = g_object_ref (self);
     ctx->client = g_object_ref (client);
     ctx->storage = storage;
+    ctx->cancellable = cancellable ? g_object_ref (cancellable) : NULL;
     g_object_get (self,
                   MM_BASE_SMS_MODEM, &ctx->modem,
                   NULL);
@@ -301,6 +309,7 @@ typedef struct {
     GSimpleAsyncResult *result;
     gboolean from_storage;
     GList *current;
+    GCancellable *cancellable;
 } SmsSendContext;
 
 static void
@@ -308,6 +317,8 @@ sms_send_context_complete_and_free (SmsSendContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->client);
     g_object_unref (ctx->modem);
     g_object_unref (ctx->self);
@@ -424,7 +435,7 @@ sms_send_generic (SmsSendContext *ctx)
     qmi_client_wms_raw_send (ctx->client,
                              input,
                              30,
-                             NULL,
+                             ctx->cancellable,
                              (GAsyncReadyCallback)send_generic_ready,
                              ctx);
     qmi_message_wms_raw_send_input_unref (input);
@@ -545,7 +556,7 @@ sms_send_from_storage (SmsSendContext *ctx)
         ctx->client,
         input,
         30,
-        NULL,
+        ctx->cancellable,
         (GAsyncReadyCallback)send_from_storage_ready,
         ctx);
     qmi_message_wms_send_from_memory_storage_input_unref (input);
@@ -576,10 +587,12 @@ sms_send (MMBaseSms *self,
     SmsSendContext *ctx;
     QmiClient *client = NULL;
     GError *error = NULL;
+    GCancellable *cancellable = NULL;
 
     /* Ensure WMS client */
     if (!ensure_qmi_client (MM_SMS_QMI (self),
                             QMI_SERVICE_WMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -591,6 +604,7 @@ sms_send (MMBaseSms *self,
                                              sms_send);
     ctx->self = g_object_ref (self);
     ctx->client = g_object_ref (client);
+    ctx->cancellable = cancellable ? g_object_ref (cancellable) : NULL;
     g_object_get (self,
                   MM_BASE_SMS_MODEM, &ctx->modem,
                   NULL);
@@ -619,6 +633,7 @@ typedef struct {
     GSimpleAsyncResult *result;
     GList *current;
     guint n_failed;
+    GCancellable *cancellable;
 } SmsDeletePartsContext;
 
 static void
@@ -626,6 +641,8 @@ sms_delete_parts_context_complete_and_free (SmsDeletePartsContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->client);
     g_object_unref (ctx->modem);
     g_object_unref (ctx->self);
@@ -718,7 +735,7 @@ delete_next_part (SmsDeletePartsContext *ctx)
     qmi_client_wms_delete (ctx->client,
                            input,
                            5,
-                           NULL,
+                           ctx->cancellable,
                            (GAsyncReadyCallback)delete_part_ready,
                            ctx);
     qmi_message_wms_delete_input_unref (input);
@@ -731,10 +748,12 @@ sms_delete (MMBaseSms *self,
 {
     SmsDeletePartsContext *ctx;
     QmiClient *client = NULL;
+    GCancellable *cancellable = NULL;
 
     /* Ensure WMS client */
     if (!ensure_qmi_client (MM_SMS_QMI (self),
                             QMI_SERVICE_WMS, &client,
+                            &cancellable,
                             callback, user_data))
         return;
 
@@ -745,6 +764,7 @@ sms_delete (MMBaseSms *self,
                                              sms_delete);
     ctx->self = g_object_ref (self);
     ctx->client = g_object_ref (client);
+    ctx->cancellable = cancellable ? g_object_ref (cancellable) : NULL;
     g_object_get (self,
                   MM_BASE_SMS_MODEM, &ctx->modem,
                   NULL);

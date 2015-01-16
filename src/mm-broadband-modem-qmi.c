@@ -481,7 +481,7 @@ load_current_capabilities_context_step (LoadCurrentCapabilitiesContext *ctx)
             ctx->nas_client,
             NULL, /* no input */
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)load_current_capabilities_get_system_selection_preference_ready,
             ctx);
         return;
@@ -492,7 +492,7 @@ load_current_capabilities_context_step (LoadCurrentCapabilitiesContext *ctx)
             ctx->nas_client,
             NULL, /* no input */
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)load_current_capabilities_get_technology_preference_ready,
             ctx);
         return;
@@ -502,7 +502,7 @@ load_current_capabilities_context_step (LoadCurrentCapabilitiesContext *ctx)
         ctx->dms_client,
         NULL, /* no input */
         5,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
         (GAsyncReadyCallback)load_current_capabilities_get_capabilities_ready,
         ctx);
 }
@@ -847,7 +847,7 @@ set_current_capabilities_context_step (SetCurrentCapabilitiesContext *ctx)
             ctx->client,
             input,
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)capabilities_set_system_selection_preference_ready,
             ctx);
         qmi_message_nas_set_system_selection_preference_input_unref (input);
@@ -880,7 +880,7 @@ set_current_capabilities_context_step (SetCurrentCapabilitiesContext *ctx)
             ctx->client,
             input,
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)capabilities_set_technology_preference_ready,
             ctx);
         qmi_message_nas_set_technology_preference_input_unref (input);
@@ -1893,7 +1893,7 @@ modem_load_current_bands (MMIfaceModem *self,
         QMI_CLIENT_NAS (client),
         NULL, /* no input */
         5,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
         (GAsyncReadyCallback)load_bands_get_system_selection_preference_ready,
         result);
 }
@@ -1991,7 +1991,7 @@ set_current_bands (MMIfaceModem *_self,
         QMI_CLIENT_NAS (client),
         input,
         5,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
         (GAsyncReadyCallback)bands_set_system_selection_preference_ready,
         result);
     qmi_message_nas_set_system_selection_preference_input_unref (input);
@@ -2708,7 +2708,7 @@ create_sim (MMIfaceModem *self,
 {
     /* New QMI SIM */
     mm_sim_qmi_new (MM_BASE_MODEM (self),
-                    NULL, /* cancellable */
+                    mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
                     callback,
                     user_data);
 }
@@ -2970,7 +2970,7 @@ load_current_modes_context_step (LoadCurrentModesContext *ctx)
             ctx->client,
             NULL, /* no input */
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)current_modes_get_system_selection_preference_ready,
             ctx);
         return;
@@ -2981,7 +2981,7 @@ load_current_modes_context_step (LoadCurrentModesContext *ctx)
             ctx->client,
             NULL, /* no input */
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)get_technology_preference_ready,
             ctx);
         return;
@@ -3162,7 +3162,7 @@ set_current_modes_context_step (SetCurrentModesContext *ctx)
             ctx->client,
             input,
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)allowed_modes_set_system_selection_preference_ready,
             ctx);
         qmi_message_nas_set_system_selection_preference_input_unref (input);
@@ -3205,7 +3205,7 @@ set_current_modes_context_step (SetCurrentModesContext *ctx)
             ctx->client,
             input,
             5,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)set_technology_preference_ready,
             ctx);
         qmi_message_nas_set_technology_preference_input_unref (input);
@@ -7883,7 +7883,7 @@ location_load_supl_server (MMIfaceModemLocation *self,
         QMI_CLIENT_PDS (client),
         input,
         10,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
         (GAsyncReadyCallback)get_agps_config_ready,
         simple);
     qmi_message_pds_get_agps_config_input_unref (input);
@@ -8020,7 +8020,7 @@ location_set_supl_server (MMIfaceModemLocation *self,
         QMI_CLIENT_PDS (client),
         input,
         10,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (self)),
         (GAsyncReadyCallback)set_agps_config_ready,
         simple);
     qmi_message_pds_set_agps_config_input_unref (input);
@@ -8191,7 +8191,7 @@ get_default_tracking_session_stop_ready (QmiClientPds *client,
         ctx->client,
         input,
         10,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
         (GAsyncReadyCallback)set_default_tracking_session_stop_ready,
         ctx);
     qmi_message_pds_set_default_tracking_session_input_unref (input);
@@ -8242,7 +8242,7 @@ disable_location_gathering (MMIfaceModemLocation *self,
             ctx->client,
             NULL,
             10,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)get_default_tracking_session_stop_ready,
             ctx);
         return;
@@ -8264,7 +8264,7 @@ disable_location_gathering (MMIfaceModemLocation *self,
                 ctx->client,
                 input,
                 10,
-                NULL, /* cancellable */
+                mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
                 (GAsyncReadyCallback)gps_service_state_stop_ready,
                 ctx);
             qmi_message_pds_set_gps_service_state_input_unref (input);
@@ -8469,7 +8469,7 @@ gps_service_state_start_ready (QmiClientPds *client,
         ctx->client,
         input,
         10,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
         (GAsyncReadyCallback)auto_tracking_state_start_ready,
         ctx);
     qmi_message_pds_set_auto_tracking_state_input_unref (input);
@@ -8564,7 +8564,7 @@ get_default_tracking_session_start_ready (QmiClientPds *client,
         ctx->client,
         input,
         10,
-        NULL, /* cancellable */
+        mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
         (GAsyncReadyCallback)set_default_tracking_session_start_ready,
         ctx);
     qmi_message_pds_set_default_tracking_session_input_unref (input);
@@ -8622,7 +8622,7 @@ parent_enable_location_gathering_ready (MMIfaceModemLocation *self,
             ctx->client,
             NULL,
             10,
-            NULL, /* cancellable */
+            mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
             (GAsyncReadyCallback)get_default_tracking_session_start_ready,
             ctx);
         return;
@@ -8641,7 +8641,7 @@ parent_enable_location_gathering_ready (MMIfaceModemLocation *self,
                 ctx->client,
                 input,
                 10,
-                NULL, /* cancellable */
+                mm_base_modem_peek_cancellable (MM_BASE_MODEM (ctx->self)),
                 (GAsyncReadyCallback)gps_service_state_start_ready,
                 ctx);
             qmi_message_pds_set_gps_service_state_input_unref (input);
